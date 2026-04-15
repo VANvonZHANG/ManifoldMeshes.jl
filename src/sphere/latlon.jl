@@ -206,3 +206,51 @@ function _edge_endpoints(g::LatLonGrid, edge_id::Int)
         return (g.nodes[ilat, ilon], g.nodes[ilat + 1, ilon])
     end
 end
+
+# -- Geometry: edge_length --
+
+function edge_length(g::LatLonGrid, edge_id::Int)
+    n1, n2 = _edge_endpoints(g, edge_id)
+    return Manifolds.distance(g.manifold, n1, n2)
+end
+
+# -- Geometry: edge_midpoint --
+
+function edge_midpoint(g::LatLonGrid, edge_id::Int)
+    n1, n2 = _edge_endpoints(g, edge_id)
+    if Manifolds.distance(g.manifold, n1, n2) < 1e-14
+        return SVector{3,Float64}(n1)
+    end
+    return SVector{3,Float64}(Manifolds.mid_point(g.manifold, n1, n2))
+end
+
+# -- Geometry: edge_outward_normal --
+
+function edge_outward_normal(g::LatLonGrid, edge_id::Int, cell_id::Int)
+    n1, n2 = _edge_endpoints(g, edge_id)
+
+    # Guard: polar collapse -- degenerate edge with coincident endpoints
+    if Manifolds.distance(g.manifold, n1, n2) < 1e-14
+        midpoint = n1
+        return (base_point = SVector{3,Float64}(midpoint),
+                normal = zero(SVector{3,Float64}))
+    end
+
+    midpoint = Manifolds.mid_point(g.manifold, n1, n2)
+    gc_normal = cross(SVector(n1), SVector(n2))  # great circle plane normal
+
+    tangent = normalize(cross(gc_normal, midpoint))
+    cell_c = cell_centroid(g, cell_id)
+    cell_side = sign(dot(gc_normal, SVector(cell_c)))
+
+    outward = cell_side * cross(tangent, SVector(midpoint))
+    outward = Manifolds.project(g.manifold, midpoint, outward)
+
+    return (base_point = SVector{3,Float64}(midpoint),
+            normal = SVector{3,Float64}(outward))
+end
+
+# -- Boundary Markers --
+
+boundary_nodes(g::LatLonGrid, marker) = Int[]
+boundary_edges(g::LatLonGrid, marker) = Int[]
