@@ -43,12 +43,12 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     # Pre-compute cell volumes via l'Huilier's formula (2 triangles per cell)
     cell_volumes = Matrix{Float64}(undef, nlat, nlon)
     for ilat in 1:nlat
-        A = nodes[ilat, 1]       # SW
-        D = nodes[ilat + 1, 1]   # NW
         for ilon in 1:nlon
             ilon_next = ilon == nlon ? 1 : ilon + 1
-            B = nodes[ilat, ilon_next]         # SE
-            C = nodes[ilat + 1, ilon_next]     # NE
+            A = nodes[ilat, ilon]             # SW
+            B = nodes[ilat, ilon_next]        # SE
+            C = nodes[ilat + 1, ilon_next]    # NE
+            D = nodes[ilat + 1, ilon]         # NW
             cell_volumes[ilat, ilon] =
                 _spherical_triangle_area(R, A, B, C) +
                 _spherical_triangle_area(R, A, C, D)
