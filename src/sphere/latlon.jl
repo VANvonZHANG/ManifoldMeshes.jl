@@ -41,6 +41,9 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     end
 
     # Pre-compute cell volumes via l'Huilier's formula (2 triangles per cell)
+    # Split each quadrilateral into 2 triangles along the A-C diagonal.
+    # If the A-C diagonal is degenerate (coincident A==C, or antipodal B==D
+    # causing one triangle to span a semicircle), fall back to the B-D diagonal.
     cell_volumes = Matrix{Float64}(undef, nlat, nlon)
     for ilat in 1:nlat
         for ilon in 1:nlon
@@ -49,9 +52,21 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
             B = nodes[ilat, ilon_next]        # SE
             C = nodes[ilat + 1, ilon_next]    # NE
             D = nodes[ilat + 1, ilon]         # NW
-            cell_volumes[ilat, ilon] =
-                _spherical_triangle_area(R, A, B, C) +
-                _spherical_triangle_area(R, A, C, D)
+            area_ac = _spherical_triangle_area(R, A, B, C) +
+                       _spherical_triangle_area(R, A, C, D)
+            if area_ac == 0.0
+                # Degenerate A-C diagonal; use B-D diagonal instead
+                area_ac = _spherical_triangle_area(R, B, C, D) +
+                           _spherical_triangle_area(R, A, B, D)
+            end
+            if area_ac == 0.0
+                # Both diagonals degenerate (e.g. 180° polar cells where
+                # all vertices collapse to 2 antipodal points). Use lune formula.
+                Δlon_rad = deg2rad(lon_edges[ilon_next] - lon_edges[ilon])
+                area_ac = R^2 * (sin(deg2rad(lat_edges[ilat+1])) -
+                                 sin(deg2rad(lat_edges[ilat]))) * abs(Δlon_rad)
+            end
+            cell_volumes[ilat, ilon] = area_ac
         end
     end
 
@@ -165,7 +180,7 @@ function node_cells(g::LatLonGrid, node_id::Int)
     ilat, ilon = _node_indices(g, node_id)
     cells = Int[]
     for i in (ilat - 1, ilat)
-        i < 1 || i > g.nlat && continue
+        (i < 1 || i > g.nlat) && continue
         for j in (ilon - 1, ilon)
             jj = j < 1 ? g.nlon : (j > g.nlon ? 1 : j)
             if 1 ≤ i ≤ g.nlat && 1 ≤ jj ≤ g.nlon

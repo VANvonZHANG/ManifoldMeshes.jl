@@ -66,6 +66,20 @@ end
     @test south_total + north_total ≈ 4 * π * R^2 atol=1e-12
 end
 
+@testset "180-degree polar cell volume (degenerate diagonal)" begin
+    R = 1.0
+    # Coarse grid with 180° longitude cells — triggers the degenerate diagonal
+    g = LatLonGrid(lat_edges=[-90.0, 0.0, 90.0], lon_edges=[0.0, 180.0, 360.0], R=R)
+
+    total = sum(i -> cell_volume(g, i), 1:num_cells(g))
+    @test total ≈ 4 * π * R^2 rtol=1e-10
+
+    # Each cell should have positive volume
+    for i in 1:num_cells(g)
+        @test cell_volume(g, i) > 0.0
+    end
+end
+
 @testset "cell_centroid basics" begin
     R = 1.0
     g = LatLonGrid(lat_edges=[-90.0, 90.0], lon_edges=[0.0, 120.0, 240.0, 360.0], R=R)
