@@ -1,0 +1,16 @@
+name = "ManifoldMeshes"
+uuid = "00000000-0000-0000-0000-000000000000"
+authors = ["zhangfan"]
+version = "0.1.0"
+
+[deps]
+Manifolds = "1cead3c2-87b9-5597-9323-f9ad80999d3f"
+ManifoldsBase = "337855e4-5022-5778-8831-4540747c2e0c"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
+[compat]
+julia = "1.10"
+Manifolds = "0.10"
+ManifoldsBase = "0.15"
+StaticArrays = "1.9"
