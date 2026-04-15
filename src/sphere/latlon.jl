@@ -138,3 +138,71 @@ function cell_centroid(g::LatLonGrid, cell_id::Int)
     ilat, ilon = _cell_indices(g, cell_id)
     return g.cell_centroids[ilat, ilon]
 end
+
+# -- Connectivity --
+
+function cell_nodes(g::LatLonGrid, cell_id::Int)
+    ilat, ilon = _cell_indices(g, cell_id)
+    ilon_next = ilon == g.nlon ? 1 : ilon + 1
+    return (
+        _node_linear_index(g, ilat,   ilon),       # SW
+        _node_linear_index(g, ilat,   ilon_next),   # SE
+        _node_linear_index(g, ilat+1, ilon_next),   # NE
+        _node_linear_index(g, ilat+1, ilon),         # NW
+    )
+end
+
+function cell_cells(g::LatLonGrid, cell_id::Int)
+    ilat, ilon = _cell_indices(g, cell_id)
+    south = ilat > 1     ? _cell_linear_index(g, ilat - 1, ilon) : 0
+    north = ilat < g.nlat ? _cell_linear_index(g, ilat + 1, ilon) : 0
+    west  = _cell_linear_index(g, ilat, ilon == 1    ? g.nlon : ilon - 1)
+    east  = _cell_linear_index(g, ilat, ilon == g.nlon ? 1      : ilon + 1)
+    return (south, north, west, east)
+end
+
+function node_cells(g::LatLonGrid, node_id::Int)
+    ilat, ilon = _node_indices(g, node_id)
+    cells = Int[]
+    for i in (ilat - 1, ilat)
+        i < 1 || i > g.nlat && continue
+        for j in (ilon - 1, ilon)
+            jj = j < 1 ? g.nlon : (j > g.nlon ? 1 : j)
+            if 1 ≤ i ≤ g.nlat && 1 ≤ jj ≤ g.nlon
+                push!(cells, _cell_linear_index(g, i, jj))
+            end
+        end
+    end
+    return cells
+end
+
+function cell_edges(g::LatLonGrid, cell_id::Int)
+    ilat, ilon = _cell_indices(g, cell_id)
+    n_h = (g.nlat + 1) * g.nlon
+    south = (ilat - 1) * g.nlon + ilon
+    north = ilat * g.nlon + ilon
+    west  = n_h + (ilat - 1) * g.nlon + ilon
+    east_ilon = ilon == g.nlon ? 1 : ilon + 1
+    east  = n_h + (ilat - 1) * g.nlon + east_ilon
+    return (south, north, west, east)
+end
+
+# -- Internal: Edge Endpoints --
+
+function _edge_endpoints(g::LatLonGrid, edge_id::Int)
+    n_h = (g.nlat + 1) * g.nlon
+    if edge_id <= n_h
+        # Horizontal edge: along a latitude circle
+        idx = edge_id - 1
+        ilat = div(idx, g.nlon) + 1
+        ilon = rem(idx, g.nlon) + 1
+        ilon_next = ilon == g.nlon ? 1 : ilon + 1
+        return (g.nodes[ilat, ilon], g.nodes[ilat, ilon_next])
+    else
+        # Vertical edge: along a longitude line
+        idx = edge_id - n_h - 1
+        ilat = div(idx, g.nlon) + 1
+        ilon = rem(idx, g.nlon) + 1
+        return (g.nodes[ilat, ilon], g.nodes[ilat + 1, ilon])
+    end
+end

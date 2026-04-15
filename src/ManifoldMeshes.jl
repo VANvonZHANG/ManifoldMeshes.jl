@@ -13,6 +13,7 @@ export TopologyStyle, IsGrid, IsMesh, AbstractLocation, NodeLoc, CellLoc, EdgeLo
 export AbstractManifoldMesh, LatLonGrid
 export manifold, num_cells, num_nodes, num_edges
 export node_coordinates, cell_volume, cell_centroid
+export cell_nodes, cell_cells, node_cells, cell_edges
 
 include("sphere/latlon.jl")
 
