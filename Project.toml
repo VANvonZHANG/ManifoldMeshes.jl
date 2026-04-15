@@ -1,16 +1,22 @@
 name = "ManifoldMeshes"
-uuid = "00000000-0000-0000-0000-000000000000"
+uuid = "d2a7aed9-80bb-46a9-9a56-e170a93cc177"
 authors = ["zhangfan"]
 version = "0.1.0"
 
 [deps]
-Manifolds = "1cead3c2-87b9-5597-9323-f9ad80999d3f"
-ManifoldsBase = "337855e4-5022-5778-8831-4540747c2e0c"
+Manifolds = "1cead3c2-87b3-11e9-0ccd-23c62b72b94e"
+ManifoldsBase = "3362f125-f0bb-47a3-aa74-596ffd7ef2fb"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
 julia = "1.10"
-Manifolds = "0.10"
-ManifoldsBase = "0.15"
+Manifolds = "0.11"
+ManifoldsBase = "2.3"
 StaticArrays = "1.9"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
