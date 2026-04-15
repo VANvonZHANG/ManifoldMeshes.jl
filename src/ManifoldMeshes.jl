@@ -10,7 +10,10 @@ include("interface.jl")
 
 # Export types and functions
 export TopologyStyle, IsGrid, IsMesh, AbstractLocation, NodeLoc, CellLoc, EdgeLoc
-export AbstractManifoldMesh
+export AbstractManifoldMesh, LatLonGrid
+export manifold, num_cells, num_nodes, num_edges
+export node_coordinates, cell_volume, cell_centroid
+
 include("sphere/latlon.jl")
 
 end # module

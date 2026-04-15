@@ -1,4 +1,6 @@
 using ManifoldMeshes
+using Manifolds
+using StaticArrays
 using Test
 
 @testset "ManifoldMeshes.jl" begin
