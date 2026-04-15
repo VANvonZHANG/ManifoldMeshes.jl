@@ -1,0 +1,1 @@
+abstract type AbstractManifoldMesh{M<:AbstractManifold} end
