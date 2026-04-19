@@ -12,7 +12,31 @@ struct LatLonGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     cell_centroids::Matrix{SVector{3, Float64}}
 end
 
+# -- Internal: Bounds Checking --
+
+@inline function _check_cell_id(g::LatLonGrid, cell_id::Int)
+    @boundscheck 1 <= cell_id <= num_cells(g) ||
+        throw(BoundsError("cell_id $cell_id out of range [1, $(num_cells(g))]"))
+    nothing
+end
+
+@inline function _check_node_id(g::LatLonGrid, node_id::Int)
+    @boundscheck 1 <= node_id <= num_nodes(g) ||
+        throw(BoundsError("node_id $node_id out of range [1, $(num_nodes(g))]"))
+    nothing
+end
+
+@inline function _check_edge_id(g::LatLonGrid, edge_id::Int)
+    @boundscheck 1 <= edge_id <= num_edges(g) ||
+        throw(BoundsError("edge_id $edge_id out of range [1, $(num_edges(g))]"))
+    nothing
+end
+
 function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R::Float64 = 1.0)
+    # Copy to prevent external mutation from corrupting cached state
+    lat_edges = copy(lat_edges)
+    lon_edges = copy(lon_edges)
+
     # Validate
     length(lat_edges) < 2 && throw(ArgumentError("lat_edges must have at least 2 elements"))
     length(lon_edges) < 2 && throw(ArgumentError("lon_edges must have at least 2 elements"))
@@ -88,6 +112,11 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
 end
 
 # -- Internal: Spherical Triangle Area (l'Huilier's formula) --
+# Uses raw dot products instead of Manifolds.distance for performance:
+# this runs in a construction-time hot loop over all cells.
+# l'Huilier's formula computes spherical excess E from three arc lengths a, b, c:
+#   E = 4 * atan(sqrt(tan(s/2) * tan((s-a)/2) * tan((s-b)/2) * tan((s-c)/2)))
+# where s = (a+b+c)/2. Area = R² * E.
 
 function _spherical_triangle_area(R::Float64, A::SVector{3, Float64},
         B::SVector{3, Float64}, C::SVector{3, Float64})
@@ -138,6 +167,7 @@ end
 # -- Geometry: node_coordinates --
 
 function node_coordinates(g::LatLonGrid, node_id::Int)
+    _check_node_id(g, node_id)
     ilat, ilon = _node_indices(g, node_id)
     return g.nodes[ilat, ilon]
 end
@@ -145,6 +175,7 @@ end
 # -- Geometry: cell_volume (cache read) --
 
 function cell_volume(g::LatLonGrid, cell_id::Int)
+    _check_cell_id(g, cell_id)
     ilat, ilon = _cell_indices(g, cell_id)
     return g.cell_volumes[ilat, ilon]
 end
@@ -152,6 +183,7 @@ end
 # -- Geometry: cell_centroid (cache read) --
 
 function cell_centroid(g::LatLonGrid, cell_id::Int)
+    _check_cell_id(g, cell_id)
     ilat, ilon = _cell_indices(g, cell_id)
     return g.cell_centroids[ilat, ilon]
 end
@@ -159,6 +191,7 @@ end
 # -- Connectivity --
 
 function cell_nodes(g::LatLonGrid, cell_id::Int)
+    _check_cell_id(g, cell_id)
     ilat, ilon = _cell_indices(g, cell_id)
     ilon_next = ilon == g.nlon ? 1 : ilon + 1
     return (
@@ -170,6 +203,7 @@ function cell_nodes(g::LatLonGrid, cell_id::Int)
 end
 
 function cell_cells(g::LatLonGrid, cell_id::Int)
+    _check_cell_id(g, cell_id)
     ilat, ilon = _cell_indices(g, cell_id)
     south = ilat > 1 ? _cell_linear_index(g, ilat - 1, ilon) : 0
     north = ilat < g.nlat ? _cell_linear_index(g, ilat + 1, ilon) : 0
@@ -179,6 +213,7 @@ function cell_cells(g::LatLonGrid, cell_id::Int)
 end
 
 function node_cells(g::LatLonGrid, node_id::Int)
+    _check_node_id(g, node_id)
     ilat, ilon = _node_indices(g, node_id)
     cells = Int[]
     for i in (ilat - 1, ilat)
@@ -194,6 +229,7 @@ function node_cells(g::LatLonGrid, node_id::Int)
 end
 
 function cell_edges(g::LatLonGrid, cell_id::Int)
+    _check_cell_id(g, cell_id)
     ilat, ilon = _cell_indices(g, cell_id)
     n_h = (g.nlat + 1) * g.nlon
     south = (ilat - 1) * g.nlon + ilon
@@ -227,6 +263,7 @@ end
 # -- Geometry: edge_length --
 
 function edge_length(g::LatLonGrid, edge_id::Int)
+    _check_edge_id(g, edge_id)
     n1, n2 = _edge_endpoints(g, edge_id)
     return Manifolds.distance(g.manifold, n1, n2)
 end
@@ -234,6 +271,7 @@ end
 # -- Geometry: edge_midpoint --
 
 function edge_midpoint(g::LatLonGrid, edge_id::Int)
+    _check_edge_id(g, edge_id)
     n1, n2 = _edge_endpoints(g, edge_id)
     if Manifolds.distance(g.manifold, n1, n2) < 1e-14
         return SVector{3, Float64}(n1)
@@ -244,6 +282,8 @@ end
 # -- Geometry: edge_outward_normal --
 
 function edge_outward_normal(g::LatLonGrid, edge_id::Int, cell_id::Int)
+    _check_edge_id(g, edge_id)
+    _check_cell_id(g, cell_id)
     n1, n2 = _edge_endpoints(g, edge_id)
 
     # Guard: polar collapse -- degenerate edge with coincident endpoints
