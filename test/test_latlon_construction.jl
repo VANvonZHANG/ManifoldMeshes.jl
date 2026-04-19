@@ -76,3 +76,19 @@ end
     @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0], lon_edges = [0.0, 360.0])
     @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0, 90.0], lon_edges = [0.0])
 end
+
+@testset "bounds checking" begin
+    g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = [0.0, 360.0])
+
+    # Cell ID out of range
+    @test_throws BoundsError cell_volume(g, 0)
+    @test_throws BoundsError cell_volume(g, num_cells(g) + 1)
+
+    # Node ID out of range
+    @test_throws BoundsError node_coordinates(g, 0)
+    @test_throws BoundsError node_coordinates(g, num_nodes(g) + 1)
+
+    # Edge ID out of range
+    @test_throws BoundsError edge_length(g, 0)
+    @test_throws BoundsError edge_length(g, num_edges(g) + 1)
+end
