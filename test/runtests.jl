@@ -15,4 +15,5 @@ end
     include("test_latlon_connectivity.jl")
     include("test_latlon_normals.jl")
     include("test_latlon_edge_cases.jl")
+    include("test_performance.jl")
 end
