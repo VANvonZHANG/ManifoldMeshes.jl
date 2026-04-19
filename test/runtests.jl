@@ -2,6 +2,11 @@ using ManifoldMeshes
 using Manifolds
 using StaticArrays
 using Test
+using Aqua
+
+@testset "Code quality (Aqua.jl)" begin
+    Aqua.test_all(ManifoldMeshes)
+end
 
 @testset "ManifoldMeshes.jl" begin
     include("test_traits.jl")
