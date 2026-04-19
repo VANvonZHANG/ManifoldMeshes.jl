@@ -1,6 +1,5 @@
 name = "ManifoldMeshes"
 uuid = "d2a7aed9-80bb-46a9-9a56-e170a93cc177"
-authors = ["zhangfan"]
 version = "0.1.0"
 
 [deps]
