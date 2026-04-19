@@ -4,8 +4,8 @@ struct IsMesh <: TopologyStyle end
 
 TopologyStyle(::Type{IsGrid}) = IsGrid()
 TopologyStyle(::Type{IsMesh}) = IsMesh()
-TopologyStyle(::Type{T}) where T = IsMesh()
-TopologyStyle(m::T) where T = TopologyStyle(T)
+TopologyStyle(::Type{T}) where {T} = IsMesh()
+TopologyStyle(m::T) where {T} = TopologyStyle(T)
 
 abstract type AbstractLocation end
 struct NodeLoc <: AbstractLocation end

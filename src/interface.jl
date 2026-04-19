@@ -1,1 +1,1 @@
-abstract type AbstractManifoldMesh{M<:AbstractManifold} end
+abstract type AbstractManifoldMesh{M <: AbstractManifold} end

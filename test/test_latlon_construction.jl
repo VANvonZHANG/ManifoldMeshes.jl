@@ -1,5 +1,6 @@
 @testset "LatLonGrid construction" begin
-    g = LatLonGrid(lat_edges=[-90.0, 0.0, 90.0], lon_edges=[0.0, 90.0, 180.0, 270.0, 360.0])
+    g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = [
+        0.0, 90.0, 180.0, 270.0, 360.0])
 
     @test g.nlat == 2
     @test g.nlon == 4
@@ -17,7 +18,8 @@
 end
 
 @testset "node_coordinates basics" begin
-    g = LatLonGrid(lat_edges=[-90.0, 0.0, 90.0], lon_edges=[0.0, 90.0, 180.0, 270.0, 360.0])
+    g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = [
+        0.0, 90.0, 180.0, 270.0, 360.0])
     # nlat=2, nlon=4 => nodes is (3, 5), nlon+1=5 columns per row
 
     # South pole: all nodes at lat=-90 map to (0, 0, -R)
@@ -47,24 +49,30 @@ end
 
 @testset "constructor validation" begin
     # Missing -90 start
-    @test_throws ArgumentError LatLonGrid(lat_edges=[-45.0, 0.0, 90.0], lon_edges=[0.0, 360.0])
+    @test_throws ArgumentError LatLonGrid(lat_edges = [-45.0, 0.0, 90.0], lon_edges = [
+        0.0, 360.0])
 
     # Missing 90 end
-    @test_throws ArgumentError LatLonGrid(lat_edges=[-90.0, 0.0, 45.0], lon_edges=[0.0, 360.0])
+    @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0, 0.0, 45.0], lon_edges = [
+        0.0, 360.0])
 
     # Not ascending
-    @test_throws ArgumentError LatLonGrid(lat_edges=[-90.0, 90.0, 0.0], lon_edges=[0.0, 360.0])
+    @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0, 90.0, 0.0], lon_edges = [
+        0.0, 360.0])
 
     # Missing 0 start for lon
-    @test_throws ArgumentError LatLonGrid(lat_edges=[-90.0, 90.0], lon_edges=[90.0, 360.0])
+    @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0, 90.0], lon_edges = [
+        90.0, 360.0])
 
     # Missing 360 end for lon
-    @test_throws ArgumentError LatLonGrid(lat_edges=[-90.0, 90.0], lon_edges=[0.0, 180.0])
+    @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0, 90.0], lon_edges = [
+        0.0, 180.0])
 
     # Not ascending lon
-    @test_throws ArgumentError LatLonGrid(lat_edges=[-90.0, 90.0], lon_edges=[0.0, 360.0, 180.0])
+    @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0, 90.0], lon_edges = [
+        0.0, 360.0, 180.0])
 
     # Need at least 2 edges each
-    @test_throws ArgumentError LatLonGrid(lat_edges=[-90.0], lon_edges=[0.0, 360.0])
-    @test_throws ArgumentError LatLonGrid(lat_edges=[-90.0, 90.0], lon_edges=[0.0])
+    @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0], lon_edges = [0.0, 360.0])
+    @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0, 90.0], lon_edges = [0.0])
 end

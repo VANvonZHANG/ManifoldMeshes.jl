@@ -1,18 +1,18 @@
 using Manifolds: Sphere
 
-struct LatLonGrid{M<:AbstractManifold} <: AbstractManifoldMesh{M}
+struct LatLonGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     manifold::M
     lat_edges::Vector{Float64}
     lon_edges::Vector{Float64}
     R::Float64
     nlat::Int
     nlon::Int
-    nodes::Matrix{SVector{3,Float64}}
+    nodes::Matrix{SVector{3, Float64}}
     cell_volumes::Matrix{Float64}
-    cell_centroids::Matrix{SVector{3,Float64}}
+    cell_centroids::Matrix{SVector{3, Float64}}
 end
 
-function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R::Float64=1.0)
+function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R::Float64 = 1.0)
     # Validate
     length(lat_edges) < 2 && throw(ArgumentError("lat_edges must have at least 2 elements"))
     length(lon_edges) < 2 && throw(ArgumentError("lon_edges must have at least 2 elements"))
@@ -28,7 +28,7 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     M = Sphere(2)
 
     # Build nodes matrix [ilat, ilon], size (nlat+1) x (nlon+1)
-    nodes = Matrix{SVector{3,Float64}}(undef, nlat + 1, nlon + 1)
+    nodes = Matrix{SVector{3, Float64}}(undef, nlat + 1, nlon + 1)
     for ilat in 1:(nlat + 1)
         lat = lat_edges[ilat]
         θ = deg2rad(lat)
@@ -53,42 +53,44 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
             C = nodes[ilat + 1, ilon_next]    # NE
             D = nodes[ilat + 1, ilon]         # NW
             area_ac = _spherical_triangle_area(R, A, B, C) +
-                       _spherical_triangle_area(R, A, C, D)
+                      _spherical_triangle_area(R, A, C, D)
             if area_ac == 0.0
                 # Degenerate A-C diagonal; use B-D diagonal instead
                 area_ac = _spherical_triangle_area(R, B, C, D) +
-                           _spherical_triangle_area(R, A, B, D)
+                          _spherical_triangle_area(R, A, B, D)
             end
             if area_ac == 0.0
                 # Both diagonals degenerate (e.g. 180° polar cells where
                 # all vertices collapse to 2 antipodal points). Use lune formula.
                 Δlon_rad = deg2rad(lon_edges[ilon_next] - lon_edges[ilon])
-                area_ac = R^2 * (sin(deg2rad(lat_edges[ilat+1])) -
-                                 sin(deg2rad(lat_edges[ilat]))) * abs(Δlon_rad)
+                area_ac = R^2 *
+                          (sin(deg2rad(lat_edges[ilat + 1])) -
+                           sin(deg2rad(lat_edges[ilat]))) * abs(Δlon_rad)
             end
             cell_volumes[ilat, ilon] = area_ac
         end
     end
 
     # Pre-compute cell centroids via Manifolds.mean
-    cell_centroids = Matrix{SVector{3,Float64}}(undef, nlat, nlon)
+    cell_centroids = Matrix{SVector{3, Float64}}(undef, nlat, nlon)
     for ilat in 1:nlat
         for ilon in 1:nlon
             ilon_next = ilon == nlon ? 1 : ilon + 1
             verts = [nodes[ilat, ilon], nodes[ilat, ilon_next],
-                     nodes[ilat+1, ilon_next], nodes[ilat+1, ilon]]
+                nodes[ilat + 1, ilon_next], nodes[ilat + 1, ilon]]
             c = Manifolds.mean(M, verts)
-            cell_centroids[ilat, ilon] = SVector{3,Float64}(c)
+            cell_centroids[ilat, ilon] = SVector{3, Float64}(c)
         end
     end
 
-    return LatLonGrid(M, lat_edges, lon_edges, R, nlat, nlon, nodes, cell_volumes, cell_centroids)
+    return LatLonGrid(
+        M, lat_edges, lon_edges, R, nlat, nlon, nodes, cell_volumes, cell_centroids)
 end
 
 # -- Internal: Spherical Triangle Area (l'Huilier's formula) --
 
-function _spherical_triangle_area(R::Float64, A::SVector{3,Float64},
-                                  B::SVector{3,Float64}, C::SVector{3,Float64})
+function _spherical_triangle_area(R::Float64, A::SVector{3, Float64},
+        B::SVector{3, Float64}, C::SVector{3, Float64})
     a = acos(clamp(dot(B, C) / (R * R), -1, 1))
     b = acos(clamp(dot(A, C) / (R * R), -1, 1))
     c = acos(clamp(dot(A, B) / (R * R), -1, 1))
@@ -160,19 +162,19 @@ function cell_nodes(g::LatLonGrid, cell_id::Int)
     ilat, ilon = _cell_indices(g, cell_id)
     ilon_next = ilon == g.nlon ? 1 : ilon + 1
     return (
-        _node_linear_index(g, ilat,   ilon),       # SW
-        _node_linear_index(g, ilat,   ilon_next),   # SE
+        _node_linear_index(g, ilat, ilon),       # SW
+        _node_linear_index(g, ilat, ilon_next),   # SE
         _node_linear_index(g, ilat+1, ilon_next),   # NE
-        _node_linear_index(g, ilat+1, ilon),         # NW
+        _node_linear_index(g, ilat+1, ilon)         # NW
     )
 end
 
 function cell_cells(g::LatLonGrid, cell_id::Int)
     ilat, ilon = _cell_indices(g, cell_id)
-    south = ilat > 1     ? _cell_linear_index(g, ilat - 1, ilon) : 0
+    south = ilat > 1 ? _cell_linear_index(g, ilat - 1, ilon) : 0
     north = ilat < g.nlat ? _cell_linear_index(g, ilat + 1, ilon) : 0
-    west  = _cell_linear_index(g, ilat, ilon == 1    ? g.nlon : ilon - 1)
-    east  = _cell_linear_index(g, ilat, ilon == g.nlon ? 1      : ilon + 1)
+    west = _cell_linear_index(g, ilat, ilon == 1 ? g.nlon : ilon - 1)
+    east = _cell_linear_index(g, ilat, ilon == g.nlon ? 1 : ilon + 1)
     return (south, north, west, east)
 end
 
@@ -196,9 +198,9 @@ function cell_edges(g::LatLonGrid, cell_id::Int)
     n_h = (g.nlat + 1) * g.nlon
     south = (ilat - 1) * g.nlon + ilon
     north = ilat * g.nlon + ilon
-    west  = n_h + (ilat - 1) * g.nlon + ilon
+    west = n_h + (ilat - 1) * g.nlon + ilon
     east_ilon = ilon == g.nlon ? 1 : ilon + 1
-    east  = n_h + (ilat - 1) * g.nlon + east_ilon
+    east = n_h + (ilat - 1) * g.nlon + east_ilon
     return (south, north, west, east)
 end
 
@@ -234,9 +236,9 @@ end
 function edge_midpoint(g::LatLonGrid, edge_id::Int)
     n1, n2 = _edge_endpoints(g, edge_id)
     if Manifolds.distance(g.manifold, n1, n2) < 1e-14
-        return SVector{3,Float64}(n1)
+        return SVector{3, Float64}(n1)
     end
-    return SVector{3,Float64}(Manifolds.mid_point(g.manifold, n1, n2))
+    return SVector{3, Float64}(Manifolds.mid_point(g.manifold, n1, n2))
 end
 
 # -- Geometry: edge_outward_normal --
@@ -247,8 +249,8 @@ function edge_outward_normal(g::LatLonGrid, edge_id::Int, cell_id::Int)
     # Guard: polar collapse -- degenerate edge with coincident endpoints
     if Manifolds.distance(g.manifold, n1, n2) < 1e-14
         midpoint = n1
-        return (base_point = SVector{3,Float64}(midpoint),
-                normal = zero(SVector{3,Float64}))
+        return (base_point = SVector{3, Float64}(midpoint),
+            normal = zero(SVector{3, Float64}))
     end
 
     midpoint = Manifolds.mid_point(g.manifold, n1, n2)
@@ -261,8 +263,8 @@ function edge_outward_normal(g::LatLonGrid, edge_id::Int, cell_id::Int)
     outward = cell_side * cross(tangent, SVector(midpoint))
     outward = Manifolds.project(g.manifold, midpoint, outward)
 
-    return (base_point = SVector{3,Float64}(midpoint),
-            normal = SVector{3,Float64}(outward))
+    return (base_point = SVector{3, Float64}(midpoint),
+        normal = SVector{3, Float64}(outward))
 end
 
 # -- Boundary Markers --
