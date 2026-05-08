@@ -16,4 +16,5 @@ end
     include("test_latlon_normals.jl")
     include("test_latlon_edge_cases.jl")
     include("test_performance.jl")
+    include("test_visualization_data.jl")
 end

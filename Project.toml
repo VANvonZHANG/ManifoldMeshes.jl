@@ -11,7 +11,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
 Aqua = "0.8"
-GeometryBasics = "0.5"
+GeometryBasics = "0.4"
 LinearAlgebra = "1.10"
 Manifolds = "0.11"
 ManifoldsBase = "2.3"
