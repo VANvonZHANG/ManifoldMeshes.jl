@@ -27,8 +27,8 @@ function slerp(p1::SVector{3, Float64}, p2::SVector{3, Float64}, n::Int)
     end
 
     return [Point3f(Float32.(
-                sin((1 - t) * θ) / sinθ * p1[i] + sin(t * θ) / sinθ * p2[i]
-            )) for t in LinRange(0, 1, n) for i in 1:3]
+                sin((1 - t) * θ) / sinθ * p1 .+ sin(t * θ) / sinθ * p2
+            )) for t in LinRange(0, 1, n)]
 end
 
 """
@@ -117,25 +117,25 @@ function cell_polygons(g::AbstractManifoldMesh; n_arc_points::Int = 20)
 
         # Concatenate: south + east + north(reversed) + west(reversed)
         # Skip first point of each subsequent arc to avoid duplication at corners
-        total_len = length(south_arc) + length(east_arc) - 1 +
-                    length(north_arc) - 1 + length(west_arc) - 1
+        total_len = length(south_arc) + (length(east_arc) - 1) +
+                    (length(north_arc) - 1) + (length(west_arc) - 1)
         polygon = Vector{Point3f}(undef, total_len)
 
         idx = 1
         for p in south_arc
-            polygon[idx] = p;
+            polygon[idx] = p
             idx += 1
         end
         for i in 2:length(east_arc)
-            polygon[idx] = east_arc[i];
+            polygon[idx] = east_arc[i]
             idx += 1
         end
-        for i in 2:length(north_arc)
-            polygon[idx] = north_arc[length(north_arc) - i + 2];
+        for p in reverse(north_arc)[2:end]
+            polygon[idx] = p
             idx += 1
         end
-        for i in 2:length(west_arc)
-            polygon[idx] = west_arc[length(west_arc) - i + 2];
+        for p in reverse(west_arc)[2:end]
+            polygon[idx] = p
             idx += 1
         end
 

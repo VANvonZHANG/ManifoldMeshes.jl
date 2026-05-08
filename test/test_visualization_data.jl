@@ -3,6 +3,7 @@ using Manifolds
 using StaticArrays
 using Test
 using GeometryBasics
+using LinearAlgebra
 
 @testset "Visualization data extraction" begin
     grid = LatLonGrid(lat_edges = Float64.(collect(-90:30:90)), lon_edges = Float64.(collect(0:60:360)))
@@ -53,7 +54,8 @@ using GeometryBasics
         @test segs isa Vector{Vector{Point3f}}
         @test length(segs) == num_edges(grid)
         for seg in segs
-            @test length(seg) == 5
+            # Degenerate edges at poles have length 1; others have n_arc_points
+            @test length(seg) == 5 || length(seg) == 1
         end
         # Non-degenerate edges: all points on unit sphere
         for seg in segs
