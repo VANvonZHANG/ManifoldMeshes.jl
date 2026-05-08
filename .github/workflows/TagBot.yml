@@ -4,10 +4,13 @@ on:
     types:
       - created
   workflow_dispatch:
+    inputs:
+      lookback:
+        default: 3
 permissions:
   contents: write
-  issues: write
-
+  issues: read
+  pull-requests: read
 jobs:
   TagBot:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
@@ -17,17 +20,17 @@ jobs:
       - uses: JuliaRegistries/TagBot@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Update release notes from CHANGELOG
+      - name: Prepend CHANGELOG to release notes
         run: |
           sleep 5
           TAG=$(git describe --tags --abbrev=0)
           VERSION="${TAG#v}"
           NOTES=$(awk "/^## \\[$VERSION\\]/{flag=1;next}/^## \\[/{flag=0}flag" CHANGELOG.md | sed '/./,$!d' | sed -n ':a;N;$!ba;s/\n*$//')
           if [ -n "$NOTES" ]; then
-            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-              gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$NOTES"
-            else
-              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "ManifoldMeshes.jl $TAG" --notes "$NOTES"
+            EXISTING=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q '.body' 2>/dev/null || echo "")
+            if [ -n "$EXISTING" ]; then
+              COMBINED="${NOTES}"$'\n\n---\n\n'"${EXISTING}"
+              gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "${COMBINED}"
             fi
           fi
         env:
