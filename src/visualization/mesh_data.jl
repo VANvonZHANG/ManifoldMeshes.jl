@@ -27,8 +27,8 @@ function slerp(p1::SVector{3, Float64}, p2::SVector{3, Float64}, n::Int)
     end
 
     return [Point3f(Float32.(
-        sin((1 - t) * θ) / sinθ * p1[i] + sin(t * θ) / sinθ * p2[i]
-    )) for t in LinRange(0, 1, n) for i in 1:3]
+                sin((1 - t) * θ) / sinθ * p1[i] + sin(t * θ) / sinθ * p2[i]
+            )) for t in LinRange(0, 1, n) for i in 1:3]
 end
 
 """
@@ -82,7 +82,7 @@ end
 Return discretized great-circle arcs for each edge, as a vector of `Point3f` arrays.
 Degenerate edges (coincident endpoints) return a single-point segment.
 """
-function edge_segments(g::AbstractManifoldMesh; n_arc_points::Int=20)
+function edge_segments(g::AbstractManifoldMesh; n_arc_points::Int = 20)
     edge_map = _build_edge_endpoint_map(g)
     segments = Vector{Vector{Point3f}}(undef, num_edges(g))
     for eid in 1:num_edges(g)
@@ -101,7 +101,7 @@ Return closed cell boundaries as discretized great-circle polygons.
 Each polygon is a vector of `Point3f` where the first point equals the last.
 Edges are ordered: south, east, north (reversed), west (reversed).
 """
-function cell_polygons(g::AbstractManifoldMesh; n_arc_points::Int=20)
+function cell_polygons(g::AbstractManifoldMesh; n_arc_points::Int = 20)
     edge_map = _build_edge_endpoint_map(g)
     polygons = Vector{Vector{Point3f}}(undef, num_cells(g))
 
@@ -123,16 +123,20 @@ function cell_polygons(g::AbstractManifoldMesh; n_arc_points::Int=20)
 
         idx = 1
         for p in south_arc
-            polygon[idx] = p; idx += 1
+            polygon[idx] = p;
+            idx += 1
         end
         for i in 2:length(east_arc)
-            polygon[idx] = east_arc[i]; idx += 1
+            polygon[idx] = east_arc[i];
+            idx += 1
         end
         for i in 2:length(north_arc)
-            polygon[idx] = north_arc[length(north_arc) - i + 2]; idx += 1
+            polygon[idx] = north_arc[length(north_arc) - i + 2];
+            idx += 1
         end
         for i in 2:length(west_arc)
-            polygon[idx] = west_arc[length(west_arc) - i + 2]; idx += 1
+            polygon[idx] = west_arc[length(west_arc) - i + 2];
+            idx += 1
         end
 
         polygons[cid] = polygon
