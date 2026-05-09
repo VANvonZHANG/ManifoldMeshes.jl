@@ -21,5 +21,12 @@ export slerp, node_points, edge_segments, cell_polygons
 
 include("sphere/latlon.jl")
 include("visualization/mesh_data.jl")
+include("visualization/plotting.jl")
+
+for sym in [:plot_mesh, :plot_mesh_filled]
+    @eval ManifoldMeshes const $sym = VisualizationPlotting.$sym
+end
+
+export plot_mesh, plot_mesh_filled
 
 end # module

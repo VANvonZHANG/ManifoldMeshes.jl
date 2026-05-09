@@ -17,4 +17,5 @@ end
     include("test_latlon_edge_cases.jl")
     include("test_performance.jl")
     include("test_visualization_data.jl")
+    include("test_visualization_smoke.jl")
 end
