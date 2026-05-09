@@ -13,6 +13,11 @@ julia --project=. -e 'include("test/test_latlon_geometry.jl")'
 
 # Aqua code quality checks
 julia --project=. -e 'using Pkg; Pkg.test()'  # Aqua runs first in runtests.jl
+
+# Visualization (requires adding a Makie backend to your environment)
+using CairoMakie  # or GLMakie for interactive 3D
+fig = plot_mesh(grid; view=Symbol("3d"))
+save("mesh.png", fig)
 ```
 
 ## Design Principles
@@ -29,6 +34,9 @@ src/
 ├── ManifoldMeshes.jl    # Module entry, exports, includes
 ├── traits.jl            # TopologyStyle (IsGrid/IsMesh), AbstractLocation (NodeLoc/CellLoc/EdgeLoc)
 ├── interface.jl         # AbstractManifoldMesh + 15 function stubs
+├── visualization/
+│   ├── mesh_data.jl     # Data extraction: node_points, edge_segments, cell_polygons
+│   └── plotting.jl      # plot_mesh, plot_mesh_filled (requires Makie at runtime)
 └── sphere/
     └── latlon.jl        # LatLonGrid implementation
 ```
@@ -56,7 +64,7 @@ src/
 - Every public function must have a test
 - Always test edge cases: polar cells, periodic boundaries, degenerate diagonals
 - Fundamental sanity checks: `Σ cell_volume = 4πR²`
-- Test files: `test_traits.jl`, `test_latlon_{construction,geometry,connectivity,normals,edge_cases}.jl`, `test_performance.jl`
+- Test files: `test_traits.jl`, `test_latlon_{construction,geometry,connectivity,normals,edge_cases}.jl`, `test_performance.jl`, `test_visualization_data.jl`, `test_visualization_smoke.jl`
 
 ## Dependencies
 
@@ -69,6 +77,7 @@ src/
 - Full-sphere grids have **no boundary** — `boundary_nodes` and `boundary_edges` return empty vectors
 - Node at lon=0 and lon=360 are the **same physical point** with different linear IDs
 - `edge_outward_normal` returns `NamedTuple{:base_point, :normal}` (tangent space semantics), not a plain vector
+- `plot_mesh` requires Makie to be loaded **before** calling — run `using CairoMakie` or `using GLMakie` first
 
 ## Commit Convention
 
