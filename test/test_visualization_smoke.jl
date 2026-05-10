@@ -24,7 +24,8 @@ using CairoMakie
     end
 
     @testset "color_by function" begin
-        fig = plot_mesh_filled(grid; color_by = i -> (i % 2 == 0 ? :red : :blue), figsize = (400, 400))
+        fig = plot_mesh_filled(grid; color_by = i -> (i % 2 == 0 ? :red : :blue), figsize = (
+            400, 400))
         @test fig isa Figure
     end
 end
