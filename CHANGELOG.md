@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-10
+
+### Added
+
+- 3D mesh visualization with `plot_mesh` and `plot_mesh_filled`, including semi-transparent sphere background rendering.
+- `CairoMakie` as a runtime dependency for plotting support.
+- Visualization smoke tests for CI coverage of plotting code.
+- `VisualizationPlotting` module docstrings included in documentation manual.
+
+### Changed
+
+- Pinned CI and Documentation workflows to Julia 1.10 (LTS) for stability.
+- TagBot workflow now includes daily cron schedule and CHANGELOG release notes extraction.
+
+### Fixed
+
+- TagBot permissions for automatic tag creation.
+- Doc Preview Cleanup workflow permissions to prevent 403 errors.
+- JuliaFormatter CI format check alignment.
+
 ## [0.1.1] - 2026-05-08
 
 ### Added
@@ -37,3 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite covering polar cells, periodic boundaries, and degenerate diagonals
 - Documenter.jl documentation site with API reference
 - GitHub Actions CI, CompatHelper, TagBot, and Dependabot automation
+
+[unreleased]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/releases/tag/v0.2.0
+[0.1.1]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/releases/tag/v0.1.1
+[0.1.0]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/releases/tag/v0.1.0
