@@ -51,3 +51,9 @@ cell_cells(grid, 1)
 ```@autodocs
 Modules = [ManifoldMeshes]
 ```
+
+### Visualization
+
+```@autodocs
+Modules = [ManifoldMeshes.VisualizationPlotting]
+```
