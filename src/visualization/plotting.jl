@@ -1,5 +1,6 @@
 module VisualizationPlotting
 
+using CairoMakie
 using ..ManifoldMeshes
 using ..ManifoldMeshes: node_points, edge_segments, cell_polygons
 using GeometryBasics: Point3f
@@ -120,10 +121,7 @@ end
 # -- Helpers --
 
 function _require_makie()
-    if !isdefined(Main, :Makie)
-        error("Makie is required for visualization. Run: `using CairoMakie` or `using GLMakie` before calling plot_mesh.")
-    end
-    return Main.Makie
+    return CairoMakie
 end
 
 function _get_radius(g::AbstractManifoldMesh)

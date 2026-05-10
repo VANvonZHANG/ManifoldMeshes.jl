@@ -5,6 +5,7 @@ using ManifoldsBase
 using StaticArrays
 using LinearAlgebra
 using GeometryBasics: Point3f
+using CairoMakie
 
 include("traits.jl")
 include("interface.jl")
