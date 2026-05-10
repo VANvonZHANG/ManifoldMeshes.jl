@@ -73,8 +73,6 @@ function _plot_mesh_3d(g; show_nodes, show_edges, show_cell_ids,
     fig = M.Figure(; size = figsize)
     ax = M.LScene(fig[1, 1]; show_axis = false)
 
-    _add_sphere_background!(ax, M; R = _get_radius(g))
-
     if show_edges
         segs = edge_segments(g; n_arc_points)
         for seg in segs
@@ -86,13 +84,13 @@ function _plot_mesh_3d(g; show_nodes, show_edges, show_cell_ids,
 
     if show_nodes
         pts = node_points(g)
-        M.meshscatter!(ax, pts; color = :orangered, markersize = 5, kwargs...)
+        M.meshscatter!(ax, pts; color = :orangered, markersize = 0.03, kwargs...)
     end
 
     if show_cell_ids
         for cid in 1:num_cells(g)
             c = cell_centroid(g, cid)
-            M.text!(ax, [M.Point3f(Float32.(c))],
+            M.text!(ax, [Point3f(Float32.(c))],
                 text = ["$cid"], fontsize = 6, color = :black, kwargs...)
         end
     end
@@ -100,7 +98,7 @@ function _plot_mesh_3d(g; show_nodes, show_edges, show_cell_ids,
     if show_node_ids
         for nid in 1:num_nodes(g)
             c = node_coordinates(g, nid)
-            M.text!(ax, [M.Point3f(Float32.(c))],
+            M.text!(ax, [Point3f(Float32.(c))],
                 text = ["$nid"], fontsize = 5, color = :gray, kwargs...)
         end
     end
@@ -116,8 +114,6 @@ function _plot_filled_3d(g; show_edges, color_by, n_arc_points, figsize, kwargs.
     fig = M.Figure(; size = figsize)
     ax = M.LScene(fig[1, 1]; show_axis = false)
 
-    _add_sphere_background!(ax, M; R = _get_radius(g))
-
     polys = cell_polygons(g; n_arc_points)
     for (i, poly) in enumerate(polys)
         if length(poly) >= 3
@@ -125,7 +121,7 @@ function _plot_filled_3d(g; show_edges, color_by, n_arc_points, figsize, kwargs.
             color = color_by === nothing ? :lightblue : color_by(i)
             for k in 2:(length(poly) - 1)
                 M.mesh!(ax, [center, poly[k], poly[k + 1]];
-                    color = color, transparency = true, kwargs...)
+                    color = color, transparency = true, shading = M.NoShading, kwargs...)
             end
         end
     end
@@ -253,7 +249,7 @@ function _add_sphere_background!(ax, M; R = 1.0)
     ye = [R * sin(phiv) * sin(thetav) for thetav in theta, phiv in phi]
     ze = [R * cos(thetav) for thetav in theta, phiv in phi]
     M.surface!(ax, xe, ye, ze;
-        color = (:lightgray, 0.15),
+        color = M.RGBA(0.8, 0.8, 0.8, 0.1),
         transparency = true,
         shading = M.NoShading)
 end
