@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TagBot permissions for automatic tag creation.
 - Doc Preview Cleanup workflow permissions to prevent 403 errors.
 - JuliaFormatter CI format check alignment.
+- Bumped `CairoMakie` 0.12 → 0.15 and `GeometryBasics` 0.4 → 0.5 to fix Julia 1.12 AutoMerge precompilation failure.
 
 ## [0.1.1] - 2026-05-08
 
