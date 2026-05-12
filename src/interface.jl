@@ -215,15 +215,6 @@ function dual(g::AbstractManifoldMesh)
     error("$(typeof(g)) must implement `dual` or declare no dual support")
 end
 
-"""
-    has_dual(g) -> Bool
-
-Returns `true` if `g` has a cached dual mesh.
-"""
-function has_dual(g::AbstractManifoldMesh)
-    error("$(typeof(g)) must implement `has_dual`")
-end
-
 # -- Patch Query Functions (for MultiPatch meshes) --
 
 """

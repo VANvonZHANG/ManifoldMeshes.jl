@@ -9,6 +9,7 @@ using CairoMakie
 
 include("traits.jl")
 include("interface.jl")
+include("dual.jl")
 
 # Export types and functions
 export TopologyStyle, IsGrid, IsSemiGrid, IsMesh, AbstractLocation, NodeLoc, CellLoc, EdgeLoc

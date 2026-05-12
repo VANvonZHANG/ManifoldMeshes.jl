@@ -10,6 +10,7 @@ struct LatLonGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     nodes::Matrix{SVector{3, Float64}}
     cell_volumes::Matrix{Float64}
     cell_centroids::Matrix{SVector{3, Float64}}
+    _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
 end
 
 # -- Internal: Bounds Checking --
@@ -108,7 +109,8 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     end
 
     return LatLonGrid(
-        M, lat_edges, lon_edges, R, nlat, nlon, nodes, cell_volumes, cell_centroids)
+        M, lat_edges, lon_edges, R, nlat, nlon, nodes, cell_volumes, cell_centroids,
+        Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing))
 end
 
 # -- Internal: Spherical Triangle Area (l'Huilier's formula) --
@@ -156,6 +158,8 @@ end
 TopologyStyle(::Type{<:LatLonGrid}) = IsGrid()
 CellTypeStyle(::Type{<:LatLonGrid}) = IsUniform{4}()
 PatchStyle(::Type{<:LatLonGrid}) = NoPatch()
+
+has_dual(g::LatLonGrid) = g._dual[] !== nothing
 
 # -- Global Information --
 
