@@ -1,7 +1,7 @@
 # Dual mesh framework
 #
-# Every mesh type that supports dual construction stores a RefValue{Nothing}
-# or RefValue{AbstractManifoldMesh} field named _dual. The dual() function
+# Every mesh type that supports dual construction stores a
+# RefValue{Union{Nothing, AbstractManifoldMesh{M}}} field named _dual. The dual() function
 # computes lazily on first call.
 
 """
@@ -23,6 +23,9 @@ has_dual(g::AbstractManifoldMesh) = false
 #       # ... geometry fields ...
 #       _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
 #   end
+#
+#   # In constructor: M is the manifold instance, so use typeof(M) for the type parameter
+#   _dual = Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing)
 #
 #   function dual(g::MyMesh{M}) where {M}
 #       if g._dual[] === nothing

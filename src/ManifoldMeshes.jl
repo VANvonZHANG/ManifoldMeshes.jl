@@ -15,7 +15,7 @@ include("dual.jl")
 export TopologyStyle, IsGrid, IsSemiGrid, IsMesh, AbstractLocation, NodeLoc, CellLoc, EdgeLoc
 export CellTypeStyle, IsUniform, IsMixed
 export PatchStyle, NoPatch, MultiPatch
-export AbstractManifoldMesh, LatLonGrid
+export AbstractManifoldMesh, AbstractDualMesh, LatLonGrid
 export manifold, num_cells, num_nodes, num_edges
 export node_coordinates, cell_volume, cell_centroid
 export cell_nodes, cell_cells, node_cells, cell_edges
