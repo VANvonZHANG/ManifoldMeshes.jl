@@ -180,3 +180,70 @@ Edge IDs on the boundary with the given `marker`. Returns empty for closed manif
 function boundary_edges(g::AbstractManifoldMesh, marker)
     error("$(typeof(g)) must implement `boundary_edges`")
 end
+
+# -- Trait Functions --
+
+"""
+    CellTypeStyle(g) -> CellTypeStyle
+
+Returns the cell type trait for mesh `g`:
+- `IsUniform{K}`: all cells have exactly K nodes
+- `IsMixed{MAX_K}`: cells have varying node counts, capped at MAX_K
+"""
+function CellTypeStyle(g::AbstractManifoldMesh)
+    error("$(typeof(g)) must implement `CellTypeStyle`")
+end
+
+"""
+    PatchStyle(g) -> PatchStyle
+
+Returns the patch structure trait for mesh `g`:
+- `NoPatch`: single contiguous domain
+- `MultiPatch{N}`: N independent structured patches (e.g., cubed-sphere faces)
+"""
+function PatchStyle(g::AbstractManifoldMesh)
+    error("$(typeof(g)) must implement `PatchStyle`")
+end
+
+# -- Dual Mesh Functions --
+
+"""
+    dual(g) -> AbstractManifoldMesh
+
+Returns the dual mesh of `g`, computing it lazily on first call.
+Returns `nothing` if the mesh type does not support dual construction.
+"""
+function dual(g::AbstractManifoldMesh)
+    error("$(typeof(g)) must implement `dual` or declare no dual support")
+end
+
+"""
+    has_dual(g) -> Bool
+
+Returns `true` if `g` has a cached dual mesh.
+"""
+function has_dual(g::AbstractManifoldMesh)
+    error("$(typeof(g)) must implement `has_dual`")
+end
+
+# -- Patch Query Functions (for MultiPatch meshes) --
+
+"""
+    cell_face(g, cell_id) -> Int
+
+Returns the face/patch index (1-based) that contains `cell_id`.
+Only defined for meshes with `PatchStyle(g) == MultiPatch{N}`.
+"""
+function cell_face(g::AbstractManifoldMesh, cell_id::Int)
+    error("$(typeof(g)) does not support patch queries")
+end
+
+"""
+    cell_local_2d(g, cell_id) -> Tuple{Int, Int}
+
+Returns the local 2D indices `(i, j)` of `cell_id` within its face/patch.
+Only defined for meshes with `PatchStyle(g) == MultiPatch{N}`.
+"""
+function cell_local_2d(g::AbstractManifoldMesh, cell_id::Int)
+    error("$(typeof(g)) does not support patch queries")
+end

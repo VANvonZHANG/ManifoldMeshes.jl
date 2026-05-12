@@ -42,3 +42,11 @@ end
     # invalid: len > MAX_K should throw on construction
     @test_throws ArgumentError ManifoldMeshes.MixedCellTopology((1, 2, 3), 4)
 end
+
+@testset "CellTypeStyle and PatchStyle for LatLonGrid" begin
+    g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = [0.0, 360.0])
+    @test CellTypeStyle(g) === IsUniform{4}()
+    @test CellTypeStyle(LatLonGrid) === IsUniform{4}()
+    @test PatchStyle(g) === NoPatch()
+    @test PatchStyle(LatLonGrid) === NoPatch()
+end
