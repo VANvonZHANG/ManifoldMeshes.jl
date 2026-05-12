@@ -34,13 +34,24 @@ struct EdgeLoc <: AbstractLocation end
 
 # -- MixedCellTopology: stack-allocated variable-length cell topology --
 struct MixedCellTopology{MAX_K} <: AbstractVector{Int}
-    nodes::NTuple{MAX_K, Int}
+    indices::NTuple{MAX_K, Int}
     len::Int
+
+    function MixedCellTopology{MAX_K}(indices::NTuple{MAX_K, Int}, len::Int) where {MAX_K}
+        if len < 0 || len > MAX_K
+            throw(ArgumentError("len must be between 0 and MAX_K (=$MAX_K), got $len"))
+        end
+        return new{MAX_K}(indices, len)
+    end
+end
+
+function MixedCellTopology(indices::NTuple{MAX_K, Int}, len::Int) where {MAX_K}
+    return MixedCellTopology{MAX_K}(indices, len)
 end
 
 Base.size(m::MixedCellTopology) = (m.len,)
 function Base.getindex(m::MixedCellTopology, i::Int)
     @boundscheck checkbounds(m, i)
-    return m.nodes[i]
+    return m.indices[i]
 end
 Base.IndexStyle(::Type{<:MixedCellTopology}) = IndexLinear()
