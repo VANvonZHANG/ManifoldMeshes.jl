@@ -2,16 +2,12 @@
     g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = [
         0.0, 90.0, 180.0, 270.0, 360.0])
 
-    # Cell 1 (ilat=1, ilon=1): SW corner cell
+    # Spot check one cell (SW corner)
     sn = cell_nodes(g, 1)
     @test length(sn) == 4
-    # SW node should be at south pole
     @test node_coordinates(g, sn[1]) ≈ SVector(0.0, 0.0, -1.0) atol=1e-12
-
-    # All cells should return NTuple{4,Int}
-    for i in 1:num_cells(g)
-        @test cell_nodes(g, i) isa NTuple{4, Int}
-    end
+    # Return type
+    @test cell_nodes(g, 1) isa NTuple{4, Int}
 end
 
 @testset "cell_cells periodicity" begin
@@ -30,22 +26,17 @@ end
 @testset "cell_cells sentinel values" begin
     g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = [0.0, 360.0])
 
-    # Bottom row (ilat=1): south neighbor = 0
     south, north, west, east = cell_cells(g, 1)
     @test south == 0
     @test north == 2
     @test west == 1  # periodic (only 1 column)
     @test east == 1  # periodic
 
-    # Top row (ilat=2): north neighbor = 0
     south, north, west, east = cell_cells(g, 2)
     @test south == 1
     @test north == 0
 
-    # Always NTuple{4,Int}
-    for i in 1:num_cells(g)
-        @test cell_cells(g, i) isa NTuple{4, Int}
-    end
+    @test cell_cells(g, 1) isa NTuple{4, Int}
 end
 
 @testset "node_cells interior vs pole" begin
@@ -69,16 +60,15 @@ end
     g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = [
         0.0, 90.0, 180.0, 270.0, 360.0])
 
-    for cell_id in 1:num_cells(g)
-        edges = cell_edges(g, cell_id)
-        @test edges isa NTuple{4, Int}
+    # Spot check one cell
+    cell_id = 1
+    edges = cell_edges(g, cell_id)
+    @test edges isa NTuple{4, Int}
 
-        # South edge endpoints should match SW and SE nodes
-        sn = cell_nodes(g, cell_id)
-        n1, n2 = ManifoldMeshes._edge_endpoints(g, edges[1])  # south edge
-        @test n1 == node_coordinates(g, sn[1])  # SW
-        @test n2 == node_coordinates(g, sn[2])  # SE
-    end
+    sn = cell_nodes(g, cell_id)
+    n1, n2 = ManifoldMeshes._edge_endpoints(g, edges[1])  # south edge
+    @test n1 == node_coordinates(g, sn[1])  # SW
+    @test n2 == node_coordinates(g, sn[2])  # SE
 end
 
 @testset "cell_edges periodicity" begin

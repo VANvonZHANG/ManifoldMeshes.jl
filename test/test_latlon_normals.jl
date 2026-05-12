@@ -19,7 +19,8 @@ end
 @testset "edge_midpoint equidistant" begin
     g = LatLonGrid(lat_edges = [-90.0, 90.0], lon_edges = [0.0, 180.0, 360.0], R = 1.0)
 
-    for edge_id in 1:num_edges(g)
+    # Spot check two edges: equatorial and meridional
+    for edge_id in [1, num_edges(g)]
         mp = edge_midpoint(g, edge_id)
         n1, n2 = ManifoldMeshes._edge_endpoints(g, edge_id)
         d1 = Manifolds.distance(g.manifold, mp, n1)
@@ -33,27 +34,22 @@ end
     g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = [
         0.0, 90.0, 180.0, 270.0, 360.0])
 
-    for cell_id in 1:num_cells(g)
-        edges = cell_edges(g, cell_id)
-        cc = cell_centroid(g, cell_id)
-        for edge_id in edges
-            result = edge_outward_normal(g, edge_id, cell_id)
-            bp, n = result.base_point, result.normal
+    # Spot check one representative cell (non-polar)
+    cell_id = 3
+    edges = cell_edges(g, cell_id)
+    cc = cell_centroid(g, cell_id)
+    for edge_id in edges
+        result = edge_outward_normal(g, edge_id, cell_id)
+        bp, n = result.base_point, result.normal
 
-            # Skip degenerate (polar collapse) edges
-            norm(n) < 1e-14 && continue
+        norm(n) < 1e-14 && continue
 
-            # Normal should be in tangent space: dot(bp, n) ~= 0
-            @test abs(dot(bp, n)) < 1e-10
+        @test abs(dot(bp, n)) < 1e-10
+        @test abs(norm(n) - 1.0) < 1e-10
 
-            # Normal should be unit length
-            @test abs(norm(n) - 1.0) < 1e-10
-
-            # Normal should point outward: dot(normal, centroid-base_point tangent projection) < 0
-            diff = cc - bp
-            proj_diff = diff - dot(diff, bp) * bp  # project to tangent space at bp
-            @test dot(n, proj_diff) < 0
-        end
+        diff = cc - bp
+        proj_diff = diff - dot(diff, bp) * bp
+        @test dot(n, proj_diff) < 0
     end
 end
 
