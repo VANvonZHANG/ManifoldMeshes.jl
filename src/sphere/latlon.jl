@@ -47,6 +47,7 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     lon_edges[1] != 0.0 && throw(ArgumentError("lon_edges must start at 0"))
     lon_edges[end] != 360.0 && throw(ArgumentError("lon_edges must end at 360"))
     !issorted(lon_edges) && throw(ArgumentError("lon_edges must be ascending"))
+    R <= 0 && throw(ArgumentError("R must be positive, got $R"))
 
     nlat = length(lat_edges) - 1
     nlon = length(lon_edges) - 1

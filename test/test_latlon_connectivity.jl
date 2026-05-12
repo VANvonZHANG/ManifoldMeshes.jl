@@ -71,6 +71,35 @@ end
     @test n2 == node_coordinates(g, sn[2])  # SE
 end
 
+@testset "cell_edges ordering on interior cell" begin
+    g = LatLonGrid(lat_edges = collect(-90.0:30.0:90.0),
+        lon_edges = collect(0.0:60.0:360.0))
+    # Interior cell (ilat=2, ilon=2) — not at pole or periodic boundary
+    cell_id = ManifoldMeshes._cell_linear_index(g, 2, 2)
+    edges = cell_edges(g, cell_id)
+    sn = cell_nodes(g, cell_id)
+
+    # South edge: SW → SE
+    n1, n2 = ManifoldMeshes._edge_endpoints(g, edges[1])
+    @test n1 == node_coordinates(g, sn[1])
+    @test n2 == node_coordinates(g, sn[2])
+
+    # North edge: NW → NE
+    n1, n2 = ManifoldMeshes._edge_endpoints(g, edges[2])
+    @test n1 == node_coordinates(g, sn[4])
+    @test n2 == node_coordinates(g, sn[3])
+
+    # West edge: SW → NW
+    n1, n2 = ManifoldMeshes._edge_endpoints(g, edges[3])
+    @test n1 == node_coordinates(g, sn[1])
+    @test n2 == node_coordinates(g, sn[4])
+
+    # East edge: SE → NE
+    n1, n2 = ManifoldMeshes._edge_endpoints(g, edges[4])
+    @test n1 == node_coordinates(g, sn[2])
+    @test n2 == node_coordinates(g, sn[3])
+end
+
 @testset "cell_edges periodicity" begin
     g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = [
         0.0, 90.0, 180.0, 270.0, 360.0])

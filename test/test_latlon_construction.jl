@@ -75,6 +75,10 @@ end
     # Need at least 2 edges each
     @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0], lon_edges = [0.0, 360.0])
     @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0, 90.0], lon_edges = [0.0])
+
+    # Non-positive radius
+    @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0, 90.0], lon_edges = [0.0, 360.0], R = 0.0)
+    @test_throws ArgumentError LatLonGrid(lat_edges = [-90.0, 90.0], lon_edges = [0.0, 360.0], R = -1.0)
 end
 
 @testset "bounds checking" begin

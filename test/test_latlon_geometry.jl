@@ -14,6 +14,13 @@ end
     @test total ≈ 4π rtol=1e-10
 end
 
+@testset "radius scaling (R ≠ 1.0)" begin
+    g = LatLonGrid(lat_edges = collect(-90.0:10.0:90.0),
+        lon_edges = collect(0.0:15.0:360.0), R = 6371.0)
+    total = sum(cell_volume(g, i) for i in 1:num_cells(g))
+    @test total ≈ 4π * 6371.0^2 rtol=1e-10
+end
+
 @testset "symmetry: same latitude band = same volume" begin
     g = LatLonGrid(lat_edges = collect(-90.0:10.0:90.0),
         lon_edges = collect(0.0:15.0:360.0))

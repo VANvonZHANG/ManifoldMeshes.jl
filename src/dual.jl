@@ -5,10 +5,11 @@
 # computes lazily on first call.
 
 """
-    AbstractDualMesh{M}
+    AbstractDualMesh{M} <: AbstractManifoldMesh{M}
 
 Marker abstract type for meshes that are explicitly constructed as duals.
-Concrete dual mesh types subtype both this and AbstractManifoldMesh{M}.
+Concrete dual mesh types subtype `AbstractDualMesh{M}`, which itself extends
+`AbstractManifoldMesh{M}`.
 """
 abstract type AbstractDualMesh{M} <: AbstractManifoldMesh{M} end
 
