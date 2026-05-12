@@ -24,6 +24,7 @@ export boundary_nodes, boundary_edges
 export dual, has_dual, cell_face, cell_local_2d
 export slerp, node_points, edge_segments, cell_polygons
 
+include("sphere/utils.jl")
 include("sphere/latlon.jl")
 include("visualization/mesh_data.jl")
 include("visualization/plotting.jl")

@@ -3,7 +3,7 @@
     A = SVector(1.0, 0.0, 0.0)
     B = SVector(0.0, 1.0, 0.0)
     C = SVector(0.0, 0.0, 1.0)
-    area = ManifoldMeshes._spherical_triangle_area(1.0, A, B, C)
+    area = ManifoldMeshes.spherical_triangle_area(1.0, A, B, C)
     @test area ≈ π / 2 atol=1e-12  # octant = π/2 steradians
 end
 

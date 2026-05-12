@@ -77,12 +77,12 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
             B = nodes[ilat, ilon_next]        # SE
             C = nodes[ilat + 1, ilon_next]    # NE
             D = nodes[ilat + 1, ilon]         # NW
-            area_ac = _spherical_triangle_area(R, A, B, C) +
-                      _spherical_triangle_area(R, A, C, D)
+            area_ac = spherical_triangle_area(R, A, B, C) +
+                      spherical_triangle_area(R, A, C, D)
             if area_ac == 0.0
                 # Degenerate A-C diagonal; use B-D diagonal instead
-                area_ac = _spherical_triangle_area(R, B, C, D) +
-                          _spherical_triangle_area(R, A, B, D)
+                area_ac = spherical_triangle_area(R, B, C, D) +
+                          spherical_triangle_area(R, A, B, D)
             end
             if area_ac == 0.0
                 # Both diagonals degenerate (e.g. 180° polar cells where
@@ -112,26 +112,6 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
         M, lat_edges, lon_edges, R, nlat, nlon, nodes, cell_volumes, cell_centroids,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing))
 end
-
-# -- Internal: Spherical Triangle Area (l'Huilier's formula) --
-# Uses raw dot products instead of Manifolds.distance for performance:
-# this runs in a construction-time hot loop over all cells.
-# l'Huilier's formula computes spherical excess E from three arc lengths a, b, c:
-#   E = 4 * atan(sqrt(tan(s/2) * tan((s-a)/2) * tan((s-b)/2) * tan((s-c)/2)))
-# where s = (a+b+c)/2. Area = R² * E.
-
-function _spherical_triangle_area(R::Float64, A::SVector{3, Float64},
-        B::SVector{3, Float64}, C::SVector{3, Float64})
-    a = acos(clamp(dot(B, C) / (R * R), -1, 1))
-    b = acos(clamp(dot(A, C) / (R * R), -1, 1))
-    c = acos(clamp(dot(A, B) / (R * R), -1, 1))
-    s = (a + b + c) / 2
-    tan_half = tan(s/2) * tan((s-a)/2) * tan((s-b)/2) * tan((s-c)/2)
-    E = 4 * atan(sqrt(max(tan_half, 0.0)))
-    return R^2 * E
-end
-
-# -- Internal: Index Helpers --
 
 function _cell_indices(g::LatLonGrid, cell_id::Int)
     ilat = div(cell_id - 1, g.nlon) + 1
