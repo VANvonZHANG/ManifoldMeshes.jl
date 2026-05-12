@@ -155,9 +155,7 @@ end
 
 TopologyStyle(::Type{<:LatLonGrid}) = IsGrid()
 CellTypeStyle(::Type{<:LatLonGrid}) = IsUniform{4}()
-CellTypeStyle(g::LatLonGrid) = IsUniform{4}()
 PatchStyle(::Type{<:LatLonGrid}) = NoPatch()
-PatchStyle(g::LatLonGrid) = NoPatch()
 
 # -- Global Information --
 

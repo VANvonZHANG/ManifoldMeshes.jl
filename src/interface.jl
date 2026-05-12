@@ -185,25 +185,23 @@ end
 
 """
     CellTypeStyle(g) -> CellTypeStyle
+    CellTypeStyle(::Type{MyMesh}) -> CellTypeStyle
 
-Returns the cell type trait for mesh `g`:
+Returns the cell type trait for mesh `g` (or mesh type):
 - `IsUniform{K}`: all cells have exactly K nodes
 - `IsMixed{MAX_K}`: cells have varying node counts, capped at MAX_K
 """
-function CellTypeStyle(g::AbstractManifoldMesh)
-    error("$(typeof(g)) must implement `CellTypeStyle`")
-end
+CellTypeStyle(g::AbstractManifoldMesh) = CellTypeStyle(typeof(g))
 
 """
     PatchStyle(g) -> PatchStyle
+    PatchStyle(::Type{MyMesh}) -> PatchStyle
 
-Returns the patch structure trait for mesh `g`:
+Returns the patch structure trait for mesh `g` (or mesh type):
 - `NoPatch`: single contiguous domain
 - `MultiPatch{N}`: N independent structured patches (e.g., cubed-sphere faces)
 """
-function PatchStyle(g::AbstractManifoldMesh)
-    error("$(typeof(g)) must implement `PatchStyle`")
-end
+PatchStyle(g::AbstractManifoldMesh) = PatchStyle(typeof(g))
 
 # -- Dual Mesh Functions --
 
