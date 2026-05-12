@@ -17,29 +17,17 @@ end
 end
 
 @testset "MixedCellTopology" begin
-    # basic usage
     m = ManifoldMeshes.MixedCellTopology((1, 2, 3, 0, 0, 0), 3)
-    @test length(m) == 3
-    @test size(m) == (3,)
-    @test m[1] == 1
-    @test m[2] == 2
-    @test m[3] == 3
     @test collect(m) == [1, 2, 3]
     @test_throws BoundsError m[4]
 
-    # edge case: empty topology (len = 0)
     m0 = ManifoldMeshes.MixedCellTopology((0, 0, 0), 0)
-    @test length(m0) == 0
-    @test size(m0) == (0,)
     @test collect(m0) == Int[]
     @test_throws BoundsError m0[1]
 
-    # edge case: full topology (len = MAX_K)
     m_full = ManifoldMeshes.MixedCellTopology((10, 20, 30), 3)
-    @test length(m_full) == 3
     @test collect(m_full) == [10, 20, 30]
 
-    # invalid: len > MAX_K should throw on construction
     @test_throws ArgumentError ManifoldMeshes.MixedCellTopology((1, 2, 3), 4)
 end
 

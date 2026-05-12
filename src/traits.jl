@@ -1,6 +1,13 @@
 # -- TopologyStyle --
 abstract type TopologyStyle end
 struct IsGrid <: TopologyStyle end
+
+"""
+    IsSemiGrid <: TopologyStyle
+
+Trait for structured grids with specialized indexing (e.g., reduced Gaussian,
+HEALPix) where simple Cartesian neighbor lookup does not apply.
+"""
 struct IsSemiGrid <: TopologyStyle end
 struct IsMesh <: TopologyStyle end
 
@@ -11,16 +18,56 @@ TopologyStyle(::Type{T}) where {T} = IsMesh()
 TopologyStyle(m::T) where {T} = TopologyStyle(T)
 
 # -- CellTypeStyle --
+
+"""
+    CellTypeStyle
+
+Trait abstract type for cell topology classification.
+Concrete subtypes: `IsUniform{K}`, `IsMixed{MAX_K}`.
+"""
 abstract type CellTypeStyle end
+
+"""
+    IsUniform{K} <: CellTypeStyle
+
+Trait indicating all cells have exactly K nodes (e.g., `IsUniform{4}()` for
+quadrilateral meshes, `IsUniform{3}()` for triangular meshes).
+"""
 struct IsUniform{K} <: CellTypeStyle end
+
+"""
+    IsMixed{MAX_K} <: CellTypeStyle
+
+Trait indicating cells have varying node counts, capped at MAX_K.
+"""
 struct IsMixed{MAX_K} <: CellTypeStyle end
 
 CellTypeStyle(::Type{T}) where {T} = error("$(T) must implement CellTypeStyle")
 CellTypeStyle(m::T) where {T} = CellTypeStyle(T)
 
 # -- PatchStyle --
+
+"""
+    PatchStyle
+
+Trait abstract type for patch/domain structure classification.
+Concrete subtypes: `NoPatch`, `MultiPatch{N}`.
+"""
 abstract type PatchStyle end
+
+"""
+    NoPatch <: PatchStyle
+
+Trait indicating a single contiguous domain with no patch subdivision.
+"""
 struct NoPatch <: PatchStyle end
+
+"""
+    MultiPatch{N} <: PatchStyle
+
+Trait indicating N independent structured patches (e.g., 6 faces of a cubed
+sphere). Use with `cell_face` and `cell_local_2d` for patch-aware queries.
+"""
 struct MultiPatch{N} <: PatchStyle end
 
 PatchStyle(::Type{T}) where {T} = NoPatch()
@@ -33,6 +80,22 @@ struct CellLoc <: AbstractLocation end
 struct EdgeLoc <: AbstractLocation end
 
 # -- MixedCellTopology: stack-allocated variable-length cell topology --
+
+"""
+    MixedCellTopology{MAX_K} <: AbstractVector{Int}
+
+Stack-allocated variable-length cell topology. Stores up to `MAX_K` integer
+indices, with active length `len` (0 ≤ len ≤ MAX_K).
+
+# Examples
+```jldoctest
+julia> m = MixedCellTopology((1, 2, 3, 0, 0, 0), 3)
+3-element MixedCellTopology{6}:
+ 1
+ 2
+ 3
+```
+"""
 struct MixedCellTopology{MAX_K} <: AbstractVector{Int}
     indices::NTuple{MAX_K, Int}
     len::Int

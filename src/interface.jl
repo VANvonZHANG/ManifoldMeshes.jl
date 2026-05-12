@@ -209,7 +209,7 @@ PatchStyle(g::AbstractManifoldMesh) = PatchStyle(typeof(g))
     dual(g) -> AbstractManifoldMesh
 
 Returns the dual mesh of `g`, computing it lazily on first call.
-Returns `nothing` if the mesh type does not support dual construction.
+Throws an error if the mesh type does not support dual construction.
 """
 function dual(g::AbstractManifoldMesh)
     error("$(typeof(g)) must implement `dual` or declare no dual support")
