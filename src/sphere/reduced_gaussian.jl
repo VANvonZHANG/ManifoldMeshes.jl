@@ -60,6 +60,8 @@ struct ReducedGaussianGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     cell_volumes::Vector{Float64}
     cell_centroids::Vector{SVector{3, Float64}}
     _cell_nodes::Vector{NTuple{4, Int}}
+    _cell_edges::Vector{NTuple{4, Int}}
+    _edge_nodes::Vector{NTuple{2, Int}}
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
 end
 
@@ -169,9 +171,34 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
         end
     end
 
+    # --- Derive edges from cell-node connectivity ---
+    edge_map = Dict{Tuple{Int, Int}, Int}()
+    _cell_edges = NTuple{4, Int}[]
+
+    for cell_id in 1:length(_cell_nodes)
+        cn = _cell_nodes[cell_id]
+        cell_edge_ids = Int[]
+        for (a, b) in ((cn[1], cn[2]), (cn[2], cn[3]),
+                        (cn[3], cn[4]), (cn[4], cn[1]))
+            key = a < b ? (a, b) : (b, a)
+            edge_id = get!(edge_map, key) do
+                length(edge_map) + 1
+            end
+            push!(cell_edge_ids, edge_id)
+        end
+        push!(_cell_edges, tuple(cell_edge_ids...))
+    end
+
+    n_edges = length(edge_map)
+    _edge_nodes = Vector{NTuple{2, Int}}(undef, n_edges)
+    for ((n1, n2), edge_id) in edge_map
+        _edge_nodes[edge_id] = (n1, n2)
+    end
+
     return ReducedGaussianGrid{typeof(M)}(
         M, nlat, R, lat_points, lon_counts, nodes,
         cell_volumes, cell_centroids, _cell_nodes,
+        _cell_edges, _edge_nodes,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing))
 end
 
@@ -188,6 +215,7 @@ has_dual(g::ReducedGaussianGrid) = g._dual[] !== nothing
 manifold(g::ReducedGaussianGrid) = g.manifold
 num_cells(g::ReducedGaussianGrid) = length(g.cell_volumes)
 num_nodes(g::ReducedGaussianGrid) = length(g.nodes)
+num_edges(g::ReducedGaussianGrid) = length(g._edge_nodes)
 
 # -- Geometry --
 
@@ -223,7 +251,8 @@ function node_cells(g::ReducedGaussianGrid, node_id::Int)
 end
 
 function cell_edges(g::ReducedGaussianGrid, cell_id::Int)
-    error("not yet implemented")
+    _check_cell_id(g, cell_id)
+    return g._cell_edges[cell_id]
 end
 
 # -- Edge Stubs --

@@ -41,3 +41,36 @@ end
         end
     end
 end
+
+@testset "ReducedGaussianGrid num_edges" begin
+    g = ReducedGaussianGrid(nlat = 4)
+    @test num_edges(g) > 0
+end
+
+@testset "ReducedGaussianGrid cell_edges" begin
+    g = ReducedGaussianGrid(nlat = 4)
+    for i in 1:num_cells(g)
+        edges = cell_edges(g, i)
+        @test edges isa NTuple{4, Int}
+        @test all(e -> 1 <= e <= num_edges(g), edges)
+    end
+end
+
+@testset "ReducedGaussianGrid edge consistency" begin
+    g = ReducedGaussianGrid(nlat = 4)
+    edge_cell_count = zeros(Int, num_edges(g))
+    for i in 1:num_cells(g)
+        for e in cell_edges(g, i)
+            edge_cell_count[e] += 1
+        end
+    end
+    # Non-degenerate edges (distinct endpoints) must be shared by exactly 2 cells.
+    # Self-loop edges (collapsed endpoints) occur at poles and at latitude-band
+    # transitions where node counts differ; they are valid but have different sharing.
+    for e in 1:num_edges(g)
+        n1, n2 = g._edge_nodes[e]
+        if n1 != n2
+            @test edge_cell_count[e] == 2
+        end
+    end
+end
