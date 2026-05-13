@@ -109,15 +109,57 @@ end
     @test_throws BoundsError cell_nodes(g, num_cells(g) + 1)
 end
 
+@testset "CubedSphereGrid cell_edges" begin
+    g = CubedSphereGrid(n = 2)
+    for i in 1:num_cells(g)
+        edges = cell_edges(g, i)
+        @test edges isa NTuple{4, Int}
+        @test all(e -> 1 <= e <= num_edges(g), edges)
+    end
+end
+
+@testset "CubedSphereGrid cell_cells within face" begin
+    g = CubedSphereGrid(n = 4)
+    # Pick an interior cell (not on face boundary)
+    face = 3
+    i, j = 2, 2
+    cell_id = (face - 1) * g.n * g.n + (j - 1) * g.n + i
+    neighbors = cell_cells(g, cell_id)
+    @test neighbors isa NTuple{4, Int}
+    @test all(n -> n > 0, neighbors)
+end
+
+@testset "CubedSphereGrid cell_cells at face boundary" begin
+    g = CubedSphereGrid(n = 4)
+    # Cell at east edge of face 1 should have 0 for cross-face neighbor
+    # Face 1 cells: 1..16 (n=4), east edge means i=4, j=2 => cell_id = (2-1)*4 + 4 = 8
+    cell_id = 8
+    neighbors = cell_cells(g, cell_id)
+    @test neighbors isa NTuple{4, Int}
+    # At least one boundary (0 sentinel)
+    @test any(n -> n == 0, neighbors)
+end
+
+@testset "CubedSphereGrid edge geometry" begin
+    g = CubedSphereGrid(n = 2)
+    for i in 1:num_edges(g)
+        @test edge_length(g, i) > 0
+        mp = edge_midpoint(g, i)
+        @test abs(norm(mp) - g.R) < 1e-10
+    end
+
+    for i in 1:num_cells(g)
+        for e in cell_edges(g, i)
+            result = edge_outward_normal(g, e, i)
+            @test abs(norm(result.base_point) - g.R) < 1e-10
+        end
+    end
+end
+
 @testset "CubedSphereGrid unimplemented stubs" begin
     g = CubedSphereGrid(n = 2)
 
-    @test_throws ErrorException cell_cells(g, 1)
     @test_throws ErrorException node_cells(g, 1)
-    @test_throws ErrorException cell_edges(g, 1)
-    @test_throws ErrorException edge_length(g, 1)
-    @test_throws ErrorException edge_midpoint(g, 1)
-    @test_throws ErrorException edge_outward_normal(g, 1, 1)
 end
 
 @testset "CubedSphereGrid rotation effect" begin

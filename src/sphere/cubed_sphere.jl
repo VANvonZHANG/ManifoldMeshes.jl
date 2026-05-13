@@ -224,7 +224,18 @@ end
 
 function cell_cells(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    error("cell_cells not yet implemented for CubedSphereGrid")
+    n = g.n
+    face = div(cell_id - 1, n * n) + 1
+    local_id = rem(cell_id - 1, n * n) + 1
+    j = div(local_id - 1, n) + 1
+    i = rem(local_id - 1, n) + 1
+
+    west = i > 1 ? _cubed_sphere_cell_id(n, face, i - 1, j) : 0
+    east = i < n ? _cubed_sphere_cell_id(n, face, i + 1, j) : 0
+    south = j > 1 ? _cubed_sphere_cell_id(n, face, i, j - 1) : 0
+    north = j < n ? _cubed_sphere_cell_id(n, face, i, j + 1) : 0
+
+    return (south, north, west, east)
 end
 
 function node_cells(g::CubedSphereGrid, node_id::Int)
@@ -234,25 +245,94 @@ end
 
 function cell_edges(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    error("cell_edges not yet implemented for CubedSphereGrid")
+    n = g.n
+    face = div(cell_id - 1, n * n) + 1
+    local_id = rem(cell_id - 1, n * n) + 1
+    j = div(local_id - 1, n) + 1
+    i = rem(local_id - 1, n) + 1
+
+    face_edge_offset = (face - 1) * 2 * n * (n + 1)
+    h_edges_per_face = (n + 1) * n
+
+    # South edge (horizontal, row j)
+    south = face_edge_offset + (j - 1) * n + i
+    # North edge (horizontal, row j+1)
+    north = face_edge_offset + j * n + i
+    # West edge (vertical, column i)
+    west = face_edge_offset + h_edges_per_face + (j - 1) * (n + 1) + i
+    # East edge (vertical, column i+1)
+    east = face_edge_offset + h_edges_per_face + (j - 1) * (n + 1) + (i + 1)
+
+    return (south, north, west, east)
 end
 
-# -- Edge Stubs --
+# -- Edge Geometry --
+
+function _edge_endpoints(g::CubedSphereGrid, edge_id::Int)
+    n = g.n
+    face_edges = 2 * n * (n + 1)
+    face = div(edge_id - 1, face_edges) + 1
+    local_edge = rem(edge_id - 1, face_edges) + 1
+    h_edges = (n + 1) * n
+
+    nn_face = (n + 1) * (n + 1)
+    node_offset = (face - 1) * nn_face
+
+    if local_edge <= h_edges
+        # Horizontal edge: along a row
+        idx = local_edge - 1
+        j = div(idx, n) + 1
+        i = rem(idx, n) + 1
+        n1 = node_offset + (j - 1) * (n + 1) + i
+        n2 = node_offset + (j - 1) * (n + 1) + (i + 1)
+    else
+        # Vertical edge: along a column
+        idx = local_edge - h_edges - 1
+        j = div(idx, n + 1) + 1
+        i = rem(idx, n + 1) + 1
+        n1 = node_offset + (j - 1) * (n + 1) + i
+        n2 = node_offset + j * (n + 1) + i
+    end
+
+    return (node_coordinates(g, n1), node_coordinates(g, n2))
+end
 
 function edge_length(g::CubedSphereGrid, edge_id::Int)
     _check_edge_id(g, edge_id)
-    error("edge_length not yet implemented for CubedSphereGrid")
+    n1, n2 = _edge_endpoints(g, edge_id)
+    return Manifolds.distance(g.manifold, n1, n2)
 end
 
 function edge_midpoint(g::CubedSphereGrid, edge_id::Int)
     _check_edge_id(g, edge_id)
-    error("edge_midpoint not yet implemented for CubedSphereGrid")
+    n1, n2 = _edge_endpoints(g, edge_id)
+    if Manifolds.distance(g.manifold, n1, n2) < 1e-14
+        return SVector{3, Float64}(n1)
+    end
+    return SVector{3, Float64}(Manifolds.mid_point(g.manifold, n1, n2))
 end
 
 function edge_outward_normal(g::CubedSphereGrid, edge_id::Int, cell_id::Int)
     _check_edge_id(g, edge_id)
     _check_cell_id(g, cell_id)
-    error("edge_outward_normal not yet implemented for CubedSphereGrid")
+    n1, n2 = _edge_endpoints(g, edge_id)
+
+    if Manifolds.distance(g.manifold, n1, n2) < 1e-14
+        midpoint = n1
+        return (base_point = SVector{3, Float64}(midpoint),
+            normal = zero(SVector{3, Float64}))
+    end
+
+    midpoint = Manifolds.mid_point(g.manifold, n1, n2)
+    gc_normal = cross(SVector(n1), SVector(n2))
+    tangent = normalize(cross(gc_normal, SVector(midpoint)))
+    cell_c = cell_centroid(g, cell_id)
+    cell_side = sign(dot(gc_normal, SVector(cell_c)))
+    outward = cell_side * cross(tangent, SVector(midpoint))
+    outward = Manifolds.project(g.manifold, midpoint, outward)
+
+    return (base_point = SVector{3, Float64}(midpoint),
+        normal = SVector{3, Float64}(outward))
 end
 
 # -- Boundary --
