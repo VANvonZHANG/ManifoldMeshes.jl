@@ -88,6 +88,18 @@ end
 
 # -- Constructor --
 
+"""
+    ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
+
+Construct a reduced Gaussian grid on the sphere.
+
+# Arguments
+- `nlat`: Number of latitude cell bands (≥ 2)
+- `R`: Sphere radius (default 1.0)
+
+The grid uses equal-area latitude bands with octahedral longitude reduction.
+Poles are included. Cell count varies per band.
+"""
 function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
     nlat >= 2 || throw(ArgumentError("nlat must be >= 2, got $nlat"))
     R > 0 || throw(ArgumentError("R must be positive, got $R"))

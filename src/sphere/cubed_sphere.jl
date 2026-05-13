@@ -31,6 +31,21 @@ end
     nothing
 end
 
+"""
+    CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic, rotation = I, R::Float64 = 1.0)
+
+Construct a cubed-sphere grid on the sphere.
+
+# Arguments
+- `n`: Number of cells per face edge (≥ 1). Cell count = 6 × n²
+- `projection`: `:gnomonic` (default) or `:equiangular`
+- `rotation`: 3×3 rotation matrix applied to all nodes
+- `R`: Sphere radius (default 1.0)
+
+The cubed-sphere projects the 6 faces of a cube onto the sphere.
+Each face is an n×n structured grid. Nodes are not deduplicated
+across face boundaries in this implementation.
+"""
 function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
         rotation = SMatrix{3, 3, Float64, 9}(I), R::Float64 = 1.0)
     n >= 1 || throw(ArgumentError("n must be >= 1, got $n"))
@@ -342,12 +357,22 @@ boundary_edges(g::CubedSphereGrid, marker) = Int[]
 
 # -- Patch Queries --
 
+"""
+    cell_face(g::CubedSphereGrid, cell_id::Int) -> Int
+
+Return the face index (1–6) containing `cell_id`.
+"""
 function cell_face(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
     n = g.n
     return div(cell_id - 1, n * n) + 1
 end
 
+"""
+    cell_local_2d(g::CubedSphereGrid, cell_id::Int) -> Tuple{Int, Int}
+
+Return the local 2D indices `(i, j)` of `cell_id` within its face.
+"""
 function cell_local_2d(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
     n = g.n

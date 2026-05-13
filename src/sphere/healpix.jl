@@ -536,6 +536,20 @@ end
 
 # -- Constructor --
 
+"""
+    HEALPixGrid(; nside::Int, ordering::Symbol = :ring, rotation = I, R::Float64 = 1.0)
+
+Construct a HEALPix grid on the sphere.
+
+# Arguments
+- `nside`: Resolution parameter (≥ 1). Cell count = 12 × nside²
+- `ordering`: `:ring` (default) or `:nested`
+- `rotation`: 3×3 rotation matrix applied to all nodes
+- `R`: Sphere radius (default 1.0)
+
+HEALPix provides an equal-area hierarchical subdivision of the sphere
+into 12 base pixels, each divided into nside² quadrilateral cells.
+"""
 function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
         rotation = SMatrix{3, 3, Float64, 9}(I), R::Float64 = 1.0)
     nside >= 1 || throw(ArgumentError("nside must be >= 1, got $nside"))
