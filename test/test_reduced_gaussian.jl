@@ -103,3 +103,32 @@ end
         @test all(c -> 1 <= c <= num_cells(g), cells)
     end
 end
+
+@testset "ReducedGaussianGrid edge_length" begin
+    g = ReducedGaussianGrid(nlat = 4)
+    for i in 1:num_edges(g)
+        len = edge_length(g, i)
+        @test len >= 0
+        @test len < 2π * g.R
+    end
+end
+
+@testset "ReducedGaussianGrid edge_midpoint on sphere" begin
+    g = ReducedGaussianGrid(nlat = 4)
+    for i in 1:num_edges(g)
+        mp = edge_midpoint(g, i)
+        @test abs(norm(mp) - g.R) < 1e-10
+    end
+end
+
+@testset "ReducedGaussianGrid edge_outward_normal" begin
+    g = ReducedGaussianGrid(nlat = 4)
+    for i in 1:num_cells(g)
+        for e in cell_edges(g, i)
+            result = edge_outward_normal(g, e, i)
+            @test hasproperty(result, :base_point)
+            @test hasproperty(result, :normal)
+            @test abs(norm(result.base_point) - g.R) < 1e-10
+        end
+    end
+end

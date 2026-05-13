@@ -80,6 +80,12 @@ end
     nothing
 end
 
+@inline function _check_edge_id(g::ReducedGaussianGrid, edge_id::Int)
+    @boundscheck 1 <= edge_id <= num_edges(g) ||
+                 throw(BoundsError("edge_id $edge_id out of range [1, $(num_edges(g))]"))
+    nothing
+end
+
 # -- Constructor --
 
 function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
@@ -292,19 +298,49 @@ function cell_edges(g::ReducedGaussianGrid, cell_id::Int)
     return g._cell_edges[cell_id]
 end
 
-# -- Edge Stubs --
-# TODO(phase3): implement edge geometry
+# -- Edge Geometry --
+
+function _edge_endpoints(g::ReducedGaussianGrid, edge_id::Int)
+    n1, n2 = g._edge_nodes[edge_id]
+    return (node_coordinates(g, n1), node_coordinates(g, n2))
+end
 
 function edge_length(g::ReducedGaussianGrid, edge_id::Int)
-    error("not yet implemented")
+    _check_edge_id(g, edge_id)
+    n1, n2 = _edge_endpoints(g, edge_id)
+    return Manifolds.distance(g.manifold, n1, n2)
 end
 
 function edge_midpoint(g::ReducedGaussianGrid, edge_id::Int)
-    error("not yet implemented")
+    _check_edge_id(g, edge_id)
+    n1, n2 = _edge_endpoints(g, edge_id)
+    if Manifolds.distance(g.manifold, n1, n2) < 1e-14
+        return SVector{3, Float64}(n1)
+    end
+    return SVector{3, Float64}(Manifolds.mid_point(g.manifold, n1, n2))
 end
 
 function edge_outward_normal(g::ReducedGaussianGrid, edge_id::Int, cell_id::Int)
-    error("not yet implemented")
+    _check_edge_id(g, edge_id)
+    _check_cell_id(g, cell_id)
+    n1, n2 = _edge_endpoints(g, edge_id)
+
+    if Manifolds.distance(g.manifold, n1, n2) < 1e-14
+        midpoint = n1
+        return (base_point = SVector{3, Float64}(midpoint),
+            normal = zero(SVector{3, Float64}))
+    end
+
+    midpoint = Manifolds.mid_point(g.manifold, n1, n2)
+    gc_normal = cross(SVector(n1), SVector(n2))
+    tangent = normalize(cross(gc_normal, SVector(midpoint)))
+    cell_c = cell_centroid(g, cell_id)
+    cell_side = sign(dot(gc_normal, SVector(cell_c)))
+    outward = cell_side * cross(tangent, SVector(midpoint))
+    outward = Manifolds.project(g.manifold, midpoint, outward)
+
+    return (base_point = SVector{3, Float64}(midpoint),
+        normal = SVector{3, Float64}(outward))
 end
 
 # -- Boundary --
