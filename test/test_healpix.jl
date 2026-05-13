@@ -1,14 +1,9 @@
+using ManifoldMeshes
 using Manifolds
 using ManifoldsBase
 using StaticArrays
 using LinearAlgebra
 using Test
-
-# Include core definitions directly (HEALPixGrid not yet wired into module)
-include(joinpath(@__DIR__, "..", "src", "traits.jl"))
-include(joinpath(@__DIR__, "..", "src", "interface.jl"))
-include(joinpath(@__DIR__, "..", "src", "sphere", "utils.jl"))
-include(joinpath(@__DIR__, "..", "src", "sphere", "healpix.jl"))
 
 @testset "HEALPixGrid construction" begin
     g = HEALPixGrid(nside = 2)

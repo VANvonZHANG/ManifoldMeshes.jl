@@ -19,4 +19,7 @@ end
     include("test_performance.jl")
     include("test_visualization_data.jl")
     include("test_visualization_smoke.jl")
+    include("test_cubed_sphere.jl")
+    include("test_reduced_gaussian.jl")
+    include("test_healpix.jl")
 end

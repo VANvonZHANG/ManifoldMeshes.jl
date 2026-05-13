@@ -1,14 +1,8 @@
+using ManifoldMeshes
 using Manifolds
-using ManifoldsBase
 using StaticArrays
 using LinearAlgebra
 using Test
-
-# Include core definitions directly (CubedSphereGrid not yet wired into module)
-include(joinpath(@__DIR__, "..", "src", "traits.jl"))
-include(joinpath(@__DIR__, "..", "src", "interface.jl"))
-include(joinpath(@__DIR__, "..", "src", "sphere", "utils.jl"))
-include(joinpath(@__DIR__, "..", "src", "sphere", "cubed_sphere.jl"))
 
 @testset "CubedSphereGrid construction" begin
     g = CubedSphereGrid(n = 2)
@@ -70,8 +64,6 @@ end
 
     # A known point should be rotated
     p = node_coordinates(g, 1)
-    # Original +Z face corner at (s=-1,t=-1) → (-1,-1,1) normalized
-    # After rotation: (1, -1, 1) normalized — on +Z face but different position
     @test abs(norm(p) - 1.0) < 1e-10
 end
 
@@ -93,11 +85,9 @@ end
 @testset "CubedSphereGrid cell_nodes" begin
     g = CubedSphereGrid(n = 2)
 
-    # cell_nodes returns NTuple{4,Int}
     nodes = cell_nodes(g, 1)
     @test nodes isa NTuple{4,Int}
 
-    # All referenced nodes are on sphere surface
     for cell_id in 1:num_cells(g)
         for node_id in cell_nodes(g, cell_id)
             p = node_coordinates(g, node_id)
@@ -135,7 +125,6 @@ end
     rot = SMatrix{3,3}(0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
     g = CubedSphereGrid(n = 2, rotation = rot)
 
-    # Rotation should change node positions
     p0 = node_coordinates(g0, 1)
     p = node_coordinates(g, 1)
     @test p != p0
