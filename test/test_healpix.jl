@@ -99,3 +99,83 @@ end
         end
     end
 end
+
+@testset "HEALPixGrid nested ordering" begin
+    for nside in [1, 2, 4]
+        g_ring = HEALPixGrid(nside = nside, ordering = :ring)
+        g_nested = HEALPixGrid(nside = nside, ordering = :nested)
+
+        @test g_ring.nside == g_nested.nside
+        @test num_cells(g_ring) == num_cells(g_nested)
+        @test num_nodes(g_ring) == num_nodes(g_nested)
+
+        # Total area should be identical
+        total_ring = sum(cell_volume(g_ring, i) for i in 1:num_cells(g_ring))
+        total_nested = sum(cell_volume(g_nested, i) for i in 1:num_cells(g_nested))
+        @test total_ring ≈ total_nested rtol = 1e-12
+
+        # Centroids should be the same set (just reordered)
+        cents_ring = Set(round.(cell_centroid(g_ring, i), digits = 10) for i in 1:num_cells(g_ring))
+        cents_nested = Set(round.(cell_centroid(g_nested, i), digits = 10) for i in 1:num_cells(g_nested))
+        @test cents_ring == cents_nested
+
+        # Cell volumes should be the same multiset
+        vols_ring = sort([cell_volume(g_ring, i) for i in 1:num_cells(g_ring)])
+        vols_nested = sort([cell_volume(g_nested, i) for i in 1:num_cells(g_nested)])
+        @test vols_ring ≈ vols_nested rtol = 1e-12
+    end
+end
+
+@testset "HEALPixGrid nested ordering connectivity consistency" begin
+    g_ring = HEALPixGrid(nside = 2, ordering = :ring)
+    g_nested = HEALPixGrid(nside = 2, ordering = :nested)
+
+    # The nested grid should have the same connectivity pattern as the ring grid,
+    # just with renumbered cells.
+
+    # Count zero neighbors in both grids
+    ring_zeros = count(n == 0 for i in 1:num_cells(g_ring) for n in cell_cells(g_ring, i))
+    nested_zeros = count(n == 0 for i in 1:num_cells(g_nested) for n in cell_cells(g_nested, i))
+    @test ring_zeros == nested_zeros
+
+    # Count asymmetric neighbor relations in both grids
+    function count_asymmetric(g)
+        count = 0
+        for i in 1:num_cells(g)
+            for n in cell_cells(g, i)
+                if n > 0 && !(i in cell_cells(g, n))
+                    count += 1
+                end
+            end
+        end
+        return count
+    end
+    @test count_asymmetric(g_ring) == count_asymmetric(g_nested)
+
+    # Edge sharing pattern should be the same
+    ring_edge_count = zeros(Int, num_edges(g_ring))
+    for i in 1:num_cells(g_ring)
+        for e in cell_edges(g_ring, i)
+            ring_edge_count[e] += 1
+        end
+    end
+    nested_edge_count = zeros(Int, num_edges(g_nested))
+    for i in 1:num_cells(g_nested)
+        for e in cell_edges(g_nested, i)
+            nested_edge_count[e] += 1
+        end
+    end
+    @test sort(ring_edge_count) == sort(nested_edge_count)
+end
+
+@testset "HEALPixGrid nested ordering cell_nodes valid" begin
+    g = HEALPixGrid(nside = 2, ordering = :nested)
+    for i in 1:num_cells(g)
+        nodes = cell_nodes(g, i)
+        @test nodes isa NTuple{4, Int}
+        for n in nodes
+            p = node_coordinates(g, n)
+            @test abs(norm(p) - g.R) < 1e-10
+        end
+    end
+end
