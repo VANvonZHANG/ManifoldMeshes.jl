@@ -28,3 +28,16 @@ end
         @test abs(norm(c) - g.R) < 1e-10
     end
 end
+
+@testset "ReducedGaussianGrid cell_nodes" begin
+    g = ReducedGaussianGrid(nlat = 4)
+
+    for i in 1:num_cells(g)
+        nodes = cell_nodes(g, i)
+        @test nodes isa NTuple{4, Int}
+        for node_id in nodes
+            p = node_coordinates(g, node_id)
+            @test abs(norm(p) - g.R) < 1e-10
+        end
+    end
+end

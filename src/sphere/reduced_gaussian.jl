@@ -59,6 +59,7 @@ struct ReducedGaussianGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     nodes::Vector{SVector{3, Float64}}
     cell_volumes::Vector{Float64}
     cell_centroids::Vector{SVector{3, Float64}}
+    _cell_nodes::Vector{NTuple{4, Int}}
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
 end
 
@@ -112,6 +113,7 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
     # Each cell is a quadrilateral (or triangle at poles): SW, SE, NE, NW
     cell_volumes = Float64[]
     cell_centroids = SVector{3, Float64}[]
+    _cell_nodes = NTuple{4, Int}[]
 
     for j in 1:nlat
         nlon_lower = lon_counts[j]
@@ -127,25 +129,33 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
             if nlon_lower >= nlon_upper
                 # Lower is finer or equal: iterate over lower cells
                 i = k
-                A = nodes[lower_offset + i]                              # SW
-                B = nodes[lower_offset + mod(i, nlon_lower) + 1]        # SE
+                idx_A = lower_offset + i
+                idx_B = lower_offset + mod(i, nlon_lower) + 1
+                A = nodes[idx_A]                              # SW
+                B = nodes[idx_B]                              # SE
 
                 ratio = nlon_upper / nlon_lower
                 i_upper = ceil(Int, i * ratio)
                 i_upper_next = ceil(Int, (i + 1) * ratio)
-                D = nodes[upper_offset + i_upper]                        # NW
-                C = nodes[upper_offset + mod(i_upper_next - 1, nlon_upper) + 1]  # NE
+                idx_D = upper_offset + i_upper
+                idx_C = upper_offset + mod(i_upper_next - 1, nlon_upper) + 1
+                D = nodes[idx_D]                              # NW
+                C = nodes[idx_C]                              # NE
             else
                 # Upper is finer: iterate over upper cells
                 i_upper = k
-                D = nodes[upper_offset + i_upper]                        # NW
-                C = nodes[upper_offset + mod(i_upper, nlon_upper) + 1]  # NE
+                idx_D = upper_offset + i_upper
+                idx_C = upper_offset + mod(i_upper, nlon_upper) + 1
+                D = nodes[idx_D]                              # NW
+                C = nodes[idx_C]                              # NE
 
                 ratio = nlon_lower / nlon_upper
                 i = ceil(Int, i_upper * ratio)
                 i_next = ceil(Int, (i_upper + 1) * ratio)
-                A = nodes[lower_offset + i]                              # SW
-                B = nodes[lower_offset + mod(i_next - 1, nlon_lower) + 1]  # SE
+                idx_A = lower_offset + i
+                idx_B = lower_offset + mod(i_next - 1, nlon_lower) + 1
+                A = nodes[idx_A]                              # SW
+                B = nodes[idx_B]                              # SE
             end
 
             area = spherical_triangle_area(R, A, B, C) +
@@ -155,12 +165,13 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
             verts = [A, B, C, D]
             c = Manifolds.mean(M, verts)
             push!(cell_centroids, SVector{3, Float64}(c))
+            push!(_cell_nodes, (idx_A, idx_B, idx_C, idx_D))
         end
     end
 
     return ReducedGaussianGrid{typeof(M)}(
         M, nlat, R, lat_points, lon_counts, nodes,
-        cell_volumes, cell_centroids,
+        cell_volumes, cell_centroids, _cell_nodes,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing))
 end
 
@@ -198,9 +209,11 @@ end
 # -- Topology Stubs --
 
 function cell_nodes(g::ReducedGaussianGrid, cell_id::Int)
-    error("not yet implemented")
+    _check_cell_id(g, cell_id)
+    return g._cell_nodes[cell_id]
 end
 
+# TODO(phase3): implement full topology (cell_cells, node_cells, cell_edges)
 function cell_cells(g::ReducedGaussianGrid, cell_id::Int)
     error("not yet implemented")
 end
@@ -214,6 +227,7 @@ function cell_edges(g::ReducedGaussianGrid, cell_id::Int)
 end
 
 # -- Edge Stubs --
+# TODO(phase3): implement edge geometry
 
 function edge_length(g::ReducedGaussianGrid, edge_id::Int)
     error("not yet implemented")

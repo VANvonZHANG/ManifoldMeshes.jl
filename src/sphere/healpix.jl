@@ -3,6 +3,11 @@ using StaticArrays: SMatrix
 
 # -- Struct --
 
+# TODO(phase3): Reconstruct as a vertex-based mesh.
+# The current `nodes` vector stores cell-centered sample points on rings,
+# not the 4 corner vertices of each quadrilateral cell.  Topology stubs
+# (cell_nodes, cell_edges, etc.) cannot be implemented without a full
+# vertex-based representation.
 struct HEALPixGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     manifold::M
     nside::Int
@@ -77,12 +82,17 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
     cell_volumes = Vector{Float64}(undef, n_cells)
     cell_centroids = Vector{SVector{3, Float64}}(undef, n_cells)
 
+    # TODO(phase3): nodes are cell-centered sample points, not vertices.
+    # The current simplified construction cannot support cell_nodes / topology
+    # queries.  A full implementation must build the 4 corner vertices of each
+    # of the 12 base pixels and their nside subdivisions.
+    length(nodes) == n_cells || error("node/cell count mismatch — simplified HEALPix assumption violated")
+
     ideal_area = 4π * R^2 / n_cells
     for i in 1:n_cells
         cell_volumes[i] = ideal_area
-        # Centroid: approximate using a random direction normalized to R
-        # (Will be refined in full implementation)
-        cell_centroids[i] = SVector{3, Float64}(R * normalize(randn(3)))
+        # Centroid: use the cell-center node (valid for this simplified construction)
+        cell_centroids[i] = nodes[i]
     end
 
     return HEALPixGrid{typeof(M)}(
@@ -124,6 +134,7 @@ function cell_centroid(g::HEALPixGrid, cell_id::Int)
 end
 
 # -- Topology Stubs --
+# TODO(phase3): implement after vertex-based reconstruction
 
 function cell_nodes(g::HEALPixGrid, cell_id::Int)
     error("not yet implemented")
@@ -142,6 +153,7 @@ function cell_edges(g::HEALPixGrid, cell_id::Int)
 end
 
 # -- Edge Stubs --
+# TODO(phase3): implement after vertex-based reconstruction
 
 function edge_length(g::HEALPixGrid, edge_id::Int)
     error("not yet implemented")
