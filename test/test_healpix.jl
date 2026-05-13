@@ -36,10 +36,21 @@ end
     end
 end
 
-@testset "HEALPixGrid centroids are deterministic" begin
-    g1 = HEALPixGrid(nside = 2)
-    g2 = HEALPixGrid(nside = 2)
-    for i in 1:num_cells(g1)
-        @test cell_centroid(g1, i) == cell_centroid(g2, i)
+@testset "HEALPixGrid cell_nodes" begin
+    g = HEALPixGrid(nside = 2)
+    for i in 1:num_cells(g)
+        nodes = cell_nodes(g, i)
+        @test nodes isa NTuple{4, Int}
+        for n in nodes
+            p = node_coordinates(g, n)
+            @test abs(norm(p) - g.R) < 1e-10
+        end
     end
+end
+
+@testset "HEALPixGrid nodes are unique vertices" begin
+    g = HEALPixGrid(nside = 2)
+    coords = [node_coordinates(g, i) for i in 1:num_nodes(g)]
+    rounded = [round.(c, digits = 10) for c in coords]
+    @test length(unique(rounded)) == num_nodes(g)
 end

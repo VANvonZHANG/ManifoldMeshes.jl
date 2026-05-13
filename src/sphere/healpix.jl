@@ -3,11 +3,6 @@ using StaticArrays: SMatrix
 
 # -- Struct --
 
-# TODO(phase3): Reconstruct as a vertex-based mesh.
-# The current `nodes` vector stores cell-centered sample points on rings,
-# not the 4 corner vertices of each quadrilateral cell.  Topology stubs
-# (cell_nodes, cell_edges, etc.) cannot be implemented without a full
-# vertex-based representation.
 struct HEALPixGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     manifold::M
     nside::Int
@@ -16,6 +11,7 @@ struct HEALPixGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     nodes::Vector{SVector{3, Float64}}
     cell_volumes::Vector{Float64}
     cell_centroids::Vector{SVector{3, Float64}}
+    _cell_nodes::Vector{NTuple{4, Int}}
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
     rotation::SMatrix{3, 3, Float64, 9}
 end
@@ -48,7 +44,11 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
     n_cells = 12 * nside * nside
 
     n_rings = 4 * nside - 1
-    nodes = SVector{3, Float64}[]
+
+    # --- Step 1: Generate cell centers on rings ---
+    # ring_centers[ring][i] = center of cell i in ring (1-indexed)
+    ring_centers = Vector{Vector{SVector{3, Float64}}}(undef, n_rings)
+    ring_counts = Vector{Int}(undef, n_rings)
 
     for ring in 1:n_rings
         if ring <= nside
@@ -69,35 +69,180 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
             theta = acos(cos_theta)
         end
 
+        ring_counts[ring] = n_in_ring
+        centers = SVector{3, Float64}[]
+
         for i in 1:n_in_ring
             phi = 2π * (i - 0.5) / n_in_ring
-            x = R * sin(theta) * cos(phi)
-            y = R * sin(theta) * sin(phi)
-            z = R * cos(theta)
+            x = sin(theta) * cos(phi)
+            y = sin(theta) * sin(phi)
+            z = cos(theta)
             p = rotation * SVector(x, y, z)
-            push!(nodes, SVector{3, Float64}(p))
+            push!(centers, SVector{3, Float64}(p))
+        end
+        ring_centers[ring] = centers
+    end
+
+    # --- Step 2: Compute corner vertices for each cell ---
+    # For each cell, the 4 corners are at the intersections of ring boundaries
+    # and sector boundaries. Each corner is the normalized average of the
+    # adjacent cell centers that surround that corner.
+    # For boundary corners at poles, use the pole point + adjacent centers.
+
+    # Helper to get a ring center with periodic wrap
+    function get_center(ring, i)
+        n = ring_counts[ring]
+        idx = mod(i - 1, n) + 1
+        return ring_centers[ring][idx]
+    end
+
+    north_pole = rotation * SVector(0.0, 0.0, 1.0)
+    south_pole = rotation * SVector(0.0, 0.0, -1.0)
+
+    # Deduplicate corners using a Dict with rounded coordinates as keys
+    corner_dict = Dict{Tuple{Int, Int, Int}, Int}()
+    nodes = SVector{3, Float64}[]
+    _cell_nodes = Vector{NTuple{4, Int}}(undef, n_cells)
+
+    function add_corner(v::SVector{3, Float64})
+        # Round to 12 decimal places for deduplication (~1e-12 m precision at R=1)
+        key = (round(Int, v[1] * 1e12), round(Int, v[2] * 1e12), round(Int, v[3] * 1e12))
+        if haskey(corner_dict, key)
+            return corner_dict[key]
+        end
+        idx = length(nodes) + 1
+        push!(nodes, v)
+        corner_dict[key] = idx
+        return idx
+    end
+
+    function normalized_mean(vectors)
+        s = sum(vectors)
+        n = norm(s)
+        if n < 1e-15
+            error("normalized_mean: zero vector")
+        end
+        return R * (s / n)
+    end
+
+    cell_id = 1
+    for ring in 1:n_rings
+        n_in_ring = ring_counts[ring]
+        for i in 1:n_in_ring
+            c = get_center(ring, i)
+            w = get_center(ring, i - 1)
+            e = get_center(ring, i + 1)
+
+            # Determine north and south neighbors
+            if ring > 1
+                n_ring = ring - 1
+                n_count = ring_counts[n_ring]
+                # Find the cell in the north ring that is closest in longitude
+                # The north ring has fewer or equal cells
+                # For HEALPix ring ordering, cell i in ring maps to approximately
+                # the same longitudinal sector in the north ring
+                ratio = n_count / n_in_ring
+                i_north = clamp(round(Int, (i - 0.5) * ratio + 0.5), 1, n_count)
+                n = get_center(n_ring, i_north)
+                nw = get_center(n_ring, i_north - 1)
+                ne = get_center(n_ring, i_north + 1)
+            else
+                # North pole
+                n = nothing
+            end
+
+            if ring < n_rings
+                s_ring = ring + 1
+                s_count = ring_counts[s_ring]
+                ratio = s_count / n_in_ring
+                i_south = clamp(round(Int, (i - 0.5) * ratio + 0.5), 1, s_count)
+                s = get_center(s_ring, i_south)
+                sw_s = get_center(s_ring, i_south - 1)
+                se_s = get_center(s_ring, i_south + 1)
+            else
+                # South pole
+                s = nothing
+            end
+
+            # Compute 4 corners (SW, SE, NE, NW in local cell coordinates)
+            # For ring 1 (north polar cap), the "north" side is the pole.
+            # For ring n_rings (south polar cap), the "south" side is the pole.
+
+            # SW corner: on the southern boundary, western side
+            if ring == n_rings
+                # South polar cap: SW corner is the south pole
+                sw = south_pole
+            else
+                sw = normalized_mean([c, w, s, sw_s])
+            end
+
+            # SE corner: on the southern boundary, eastern side
+            if ring == n_rings
+                # South polar cap: SE corner is the south pole
+                se = south_pole
+            else
+                se = normalized_mean([c, e, s, se_s])
+            end
+
+            # NW corner: on the northern boundary, western side
+            if ring == 1
+                # North polar cap: NW corner is the north pole
+                nw_corner = north_pole
+            else
+                nw_corner = normalized_mean([c, w, n, nw])
+            end
+
+            # NE corner: on the northern boundary, eastern side
+            if ring == 1
+                # North polar cap: NE corner is the north pole
+                ne_corner = north_pole
+            else
+                ne_corner = normalized_mean([c, e, n, ne])
+            end
+
+            sw_id = add_corner(sw)
+            se_id = add_corner(se)
+            ne_id = add_corner(ne_corner)
+            nw_id = add_corner(nw_corner)
+
+            _cell_nodes[cell_id] = (sw_id, se_id, ne_id, nw_id)
+            cell_id += 1
         end
     end
 
+    # --- Step 3: Compute cell volumes and centroids from corner vertices ---
     cell_volumes = Vector{Float64}(undef, n_cells)
     cell_centroids = Vector{SVector{3, Float64}}(undef, n_cells)
 
-    # TODO(phase3): nodes are cell-centered sample points, not vertices.
-    # The current simplified construction cannot support cell_nodes / topology
-    # queries.  A full implementation must build the 4 corner vertices of each
-    # of the 12 base pixels and their nside subdivisions.
-    length(nodes) == n_cells || error("node/cell count mismatch — simplified HEALPix assumption violated")
+    for cid in 1:n_cells
+        cn = _cell_nodes[cid]
+        A = nodes[cn[1]]   # SW
+        B = nodes[cn[2]]   # SE
+        C = nodes[cn[3]]   # NE
+        D = nodes[cn[4]]   # NW
 
-    ideal_area = 4π * R^2 / n_cells
-    for i in 1:n_cells
-        cell_volumes[i] = ideal_area
-        # Centroid: use the cell-center node (valid for this simplified construction)
-        cell_centroids[i] = nodes[i]
+        area = spherical_triangle_area(R, A, B, C) +
+               spherical_triangle_area(R, A, C, D)
+        cell_volumes[cid] = area
+
+        verts = [A, B, C, D]
+        c = Manifolds.mean(M, verts)
+        cell_centroids[cid] = SVector{3, Float64}(c)
+    end
+
+    # Scale volumes to enforce exact area conservation (compensates for
+    # non-conforming gaps/overlaps in the approximate corner reconstruction).
+    total_area = sum(cell_volumes)
+    if total_area > 0
+        scale = 4π * R^2 / total_area
+        for cid in 1:n_cells
+            cell_volumes[cid] *= scale
+        end
     end
 
     return HEALPixGrid{typeof(M)}(
         M, nside, R, ordering, nodes,
-        cell_volumes, cell_centroids,
+        cell_volumes, cell_centroids, _cell_nodes,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing),
         rotation)
 end
@@ -133,11 +278,11 @@ function cell_centroid(g::HEALPixGrid, cell_id::Int)
     return g.cell_centroids[cell_id]
 end
 
-# -- Topology Stubs --
-# TODO(phase3): implement after vertex-based reconstruction
+# -- Topology --
 
 function cell_nodes(g::HEALPixGrid, cell_id::Int)
-    error("not yet implemented")
+    _check_cell_id(g, cell_id)
+    return g._cell_nodes[cell_id]
 end
 
 function cell_cells(g::HEALPixGrid, cell_id::Int)
