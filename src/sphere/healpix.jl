@@ -12,6 +12,9 @@ struct HEALPixGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     cell_volumes::Vector{Float64}
     cell_centroids::Vector{SVector{3, Float64}}
     _cell_nodes::Vector{NTuple{4, Int}}
+    _cell_edges::Vector{NTuple{4, Int}}
+    _cell_cells::Vector{NTuple{4, Int}}
+    _edge_nodes::Vector{NTuple{2, Int}}
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
     rotation::SMatrix{3, 3, Float64, 9}
 end
@@ -240,9 +243,59 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
         end
     end
 
+    # --- Derive edges from cell-node connectivity ---
+    edge_map = Dict{Tuple{Int, Int}, Int}()
+    _cell_edges = NTuple{4, Int}[]
+
+    for cell_id in 1:n_cells
+        cn = _cell_nodes[cell_id]
+        cell_edge_ids = Int[]
+        for (a, b) in ((cn[1], cn[2]), (cn[2], cn[3]),
+                        (cn[3], cn[4]), (cn[4], cn[1]))
+            key = a < b ? (a, b) : (b, a)
+            edge_id = get!(edge_map, key) do
+                length(edge_map) + 1
+            end
+            push!(cell_edge_ids, edge_id)
+        end
+        push!(_cell_edges, tuple(cell_edge_ids...))
+    end
+
+    n_edges = length(edge_map)
+    _edge_nodes = Vector{NTuple{2, Int}}(undef, n_edges)
+    for ((n1, n2), edge_id) in edge_map
+        _edge_nodes[edge_id] = (n1, n2)
+    end
+
+    # --- Derive cell neighbors from edge sharing ---
+    edge_cells = [Int[] for _ in 1:n_edges]
+    for cell_id in 1:n_cells
+        for e in _cell_edges[cell_id]
+            push!(edge_cells[e], cell_id)
+        end
+    end
+
+    _cell_cells = Vector{NTuple{4, Int}}(undef, n_cells)
+    for cell_id in 1:n_cells
+        ce = _cell_edges[cell_id]
+        neighbors = Int[]
+        for e in ce
+            adj = edge_cells[e]
+            if length(adj) == 1
+                # Boundary edge or self-loop — no neighbor
+                push!(neighbors, 0)
+            else
+                other = first(c for c in adj if c != cell_id)
+                push!(neighbors, other)
+            end
+        end
+        _cell_cells[cell_id] = tuple(neighbors...)
+    end
+
     return HEALPixGrid{typeof(M)}(
         M, nside, R, ordering, nodes,
         cell_volumes, cell_centroids, _cell_nodes,
+        _cell_edges, _cell_cells, _edge_nodes,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing),
         rotation)
 end
@@ -260,6 +313,7 @@ has_dual(g::HEALPixGrid) = g._dual[] !== nothing
 manifold(g::HEALPixGrid) = g.manifold
 num_cells(g::HEALPixGrid) = 12 * g.nside * g.nside
 num_nodes(g::HEALPixGrid) = length(g.nodes)
+num_edges(g::HEALPixGrid) = length(g._edge_nodes)
 
 # -- Geometry --
 
@@ -286,30 +340,75 @@ function cell_nodes(g::HEALPixGrid, cell_id::Int)
 end
 
 function cell_cells(g::HEALPixGrid, cell_id::Int)
-    error("not yet implemented")
+    _check_cell_id(g, cell_id)
+    return g._cell_cells[cell_id]
 end
 
 function node_cells(g::HEALPixGrid, node_id::Int)
-    error("not yet implemented")
+    _check_node_id(g, node_id)
+    cells = Int[]
+    for cell_id in 1:num_cells(g)
+        if node_id in cell_nodes(g, cell_id)
+            push!(cells, cell_id)
+        end
+    end
+    return cells
 end
 
 function cell_edges(g::HEALPixGrid, cell_id::Int)
-    error("not yet implemented")
+    _check_cell_id(g, cell_id)
+    return g._cell_edges[cell_id]
 end
 
-# -- Edge Stubs --
-# TODO(phase3): implement after vertex-based reconstruction
+# -- Edge Geometry --
+
+@inline function _check_edge_id(g::HEALPixGrid, edge_id::Int)
+    @boundscheck 1 <= edge_id <= num_edges(g) ||
+                 throw(BoundsError("edge_id $edge_id out of range [1, $(num_edges(g))]"))
+    nothing
+end
+
+function _edge_endpoints(g::HEALPixGrid, edge_id::Int)
+    n1, n2 = g._edge_nodes[edge_id]
+    return (node_coordinates(g, n1), node_coordinates(g, n2))
+end
 
 function edge_length(g::HEALPixGrid, edge_id::Int)
-    error("not yet implemented")
+    _check_edge_id(g, edge_id)
+    n1, n2 = _edge_endpoints(g, edge_id)
+    return Manifolds.distance(g.manifold, n1, n2)
 end
 
 function edge_midpoint(g::HEALPixGrid, edge_id::Int)
-    error("not yet implemented")
+    _check_edge_id(g, edge_id)
+    n1, n2 = _edge_endpoints(g, edge_id)
+    if Manifolds.distance(g.manifold, n1, n2) < 1e-14
+        return SVector{3, Float64}(n1)
+    end
+    return SVector{3, Float64}(Manifolds.mid_point(g.manifold, n1, n2))
 end
 
 function edge_outward_normal(g::HEALPixGrid, edge_id::Int, cell_id::Int)
-    error("not yet implemented")
+    _check_edge_id(g, edge_id)
+    _check_cell_id(g, cell_id)
+    n1, n2 = _edge_endpoints(g, edge_id)
+
+    if Manifolds.distance(g.manifold, n1, n2) < 1e-14
+        midpoint = n1
+        return (base_point = SVector{3, Float64}(midpoint),
+            normal = zero(SVector{3, Float64}))
+    end
+
+    midpoint = Manifolds.mid_point(g.manifold, n1, n2)
+    gc_normal = cross(SVector(n1), SVector(n2))
+    tangent = normalize(cross(gc_normal, SVector(midpoint)))
+    cell_c = cell_centroid(g, cell_id)
+    cell_side = sign(dot(gc_normal, SVector(cell_c)))
+    outward = cell_side * cross(tangent, SVector(midpoint))
+    outward = Manifolds.project(g.manifold, midpoint, outward)
+
+    return (base_point = SVector{3, Float64}(midpoint),
+        normal = SVector{3, Float64}(outward))
 end
 
 # -- Boundary --

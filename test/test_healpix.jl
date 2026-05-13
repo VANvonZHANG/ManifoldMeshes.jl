@@ -54,3 +54,48 @@ end
     rounded = [round.(c, digits = 10) for c in coords]
     @test length(unique(rounded)) == num_nodes(g)
 end
+
+@testset "HEALPixGrid num_edges" begin
+    g = HEALPixGrid(nside = 2)
+    @test num_edges(g) > 0
+end
+
+@testset "HEALPixGrid cell_edges" begin
+    g = HEALPixGrid(nside = 2)
+    for i in 1:num_cells(g)
+        edges = cell_edges(g, i)
+        @test edges isa NTuple{4, Int}
+    end
+end
+
+@testset "HEALPixGrid cell_cells" begin
+    g = HEALPixGrid(nside = 2)
+    for i in 1:num_cells(g)
+        neighbors = cell_cells(g, i)
+        @test neighbors isa NTuple{4, Int}
+    end
+end
+
+@testset "HEALPixGrid node_cells" begin
+    g = HEALPixGrid(nside = 2)
+    for i in 1:num_nodes(g)
+        cells = node_cells(g, i)
+        @test cells isa Vector{Int}
+    end
+end
+
+@testset "HEALPixGrid edge geometry" begin
+    g = HEALPixGrid(nside = 2)
+    for i in 1:num_edges(g)
+        @test edge_length(g, i) >= 0
+        mp = edge_midpoint(g, i)
+        @test abs(norm(mp) - g.R) < 1e-10
+    end
+
+    for i in 1:num_cells(g)
+        for e in cell_edges(g, i)
+            result = edge_outward_normal(g, e, i)
+            @test abs(norm(result.base_point) - g.R) < 1e-10
+        end
+    end
+end
