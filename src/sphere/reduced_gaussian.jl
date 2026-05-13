@@ -62,6 +62,7 @@ struct ReducedGaussianGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     _cell_nodes::Vector{NTuple{4, Int}}
     _cell_edges::Vector{NTuple{4, Int}}
     _edge_nodes::Vector{NTuple{2, Int}}
+    _cell_cells::Vector{NTuple{4, Int}}
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
 end
 
@@ -195,10 +196,39 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
         _edge_nodes[edge_id] = (n1, n2)
     end
 
+    # --- Derive cell neighbors from edge sharing ---
+    edge_cells = [Int[] for _ in 1:n_edges]
+    for cell_id in 1:length(_cell_nodes)
+        for e in _cell_edges[cell_id]
+            push!(edge_cells[e], cell_id)
+        end
+    end
+
+    num_cells = length(_cell_nodes)
+    _cell_cells = Vector{NTuple{4, Int}}(undef, num_cells)
+    for cell_id in 1:num_cells
+        ce = _cell_edges[cell_id]
+        neighbors = Int[]
+        for e in ce
+            adj = edge_cells[e]
+            n1, n2 = _edge_nodes[e]
+            if n1 == n2
+                # Self-loop edge (zero-length, e.g. at poles): no neighbor across it
+                push!(neighbors, 0)
+            else
+                # Non-degenerate edge: should be shared by exactly 2 cells
+                others = filter(c -> c != cell_id, adj)
+                # Use 0 sentinel if no other cell found (should not happen for non-self-loops)
+                push!(neighbors, isempty(others) ? 0 : first(others))
+            end
+        end
+        _cell_cells[cell_id] = tuple(neighbors...)
+    end
+
     return ReducedGaussianGrid{typeof(M)}(
         M, nlat, R, lat_points, lon_counts, nodes,
         cell_volumes, cell_centroids, _cell_nodes,
-        _cell_edges, _edge_nodes,
+        _cell_edges, _edge_nodes, _cell_cells,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing))
 end
 
@@ -241,13 +271,20 @@ function cell_nodes(g::ReducedGaussianGrid, cell_id::Int)
     return g._cell_nodes[cell_id]
 end
 
-# TODO(phase3): implement full topology (cell_cells, node_cells, cell_edges)
 function cell_cells(g::ReducedGaussianGrid, cell_id::Int)
-    error("not yet implemented")
+    _check_cell_id(g, cell_id)
+    return g._cell_cells[cell_id]
 end
 
 function node_cells(g::ReducedGaussianGrid, node_id::Int)
-    error("not yet implemented")
+    _check_node_id(g, node_id)
+    cells = Int[]
+    for cell_id in 1:num_cells(g)
+        if node_id in cell_nodes(g, cell_id)
+            push!(cells, cell_id)
+        end
+    end
+    return cells
 end
 
 function cell_edges(g::ReducedGaussianGrid, cell_id::Int)

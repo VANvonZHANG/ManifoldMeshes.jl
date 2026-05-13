@@ -74,3 +74,32 @@ end
         end
     end
 end
+
+@testset "ReducedGaussianGrid cell_cells" begin
+    g = ReducedGaussianGrid(nlat = 4)
+    for i in 1:num_cells(g)
+        neighbors = cell_cells(g, i)
+        @test neighbors isa NTuple{4, Int}
+        # 0 is a valid sentinel for edges with no neighbor (e.g. self-loops at poles)
+        @test all(n -> n == 0 || (1 <= n <= num_cells(g)), neighbors)
+    end
+end
+
+@testset "ReducedGaussianGrid cell_cells symmetry" begin
+    g = ReducedGaussianGrid(nlat = 4)
+    for i in 1:num_cells(g)
+        for n in cell_cells(g, i)
+            n == 0 && continue  # skip sentinel (no neighbor across this edge)
+            @test i in cell_cells(g, n)
+        end
+    end
+end
+
+@testset "ReducedGaussianGrid node_cells" begin
+    g = ReducedGaussianGrid(nlat = 4)
+    for i in 1:num_nodes(g)
+        cells = node_cells(g, i)
+        @test cells isa Vector{Int}
+        @test all(c -> 1 <= c <= num_cells(g), cells)
+    end
+end
