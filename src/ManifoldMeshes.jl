@@ -15,7 +15,7 @@ include("dual.jl")
 export TopologyStyle, IsGrid, IsSemiGrid, IsMesh, AbstractLocation, NodeLoc, CellLoc, EdgeLoc
 export CellTypeStyle, IsUniform, IsMixed
 export PatchStyle, NoPatch, MultiPatch
-export AbstractManifoldMesh, AbstractDualMesh, LatLonGrid, MixedCellTopology
+export AbstractManifoldMesh, AbstractDualMesh, LatLonGrid, CubedSphereGrid, MixedCellTopology
 export manifold, num_cells, num_nodes, num_edges
 export node_coordinates, cell_volume, cell_centroid
 export cell_nodes, cell_cells, node_cells, cell_edges
@@ -26,6 +26,7 @@ export slerp, node_points, edge_segments, cell_polygons
 
 include("sphere/utils.jl")
 include("sphere/latlon.jl")
+include("sphere/cubed_sphere.jl")
 include("visualization/mesh_data.jl")
 include("visualization/plotting.jl")
 
