@@ -10,6 +10,7 @@ struct CubedSphereGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     cell_centroids::Vector{SVector{3, Float64}}
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
     rotation::SMatrix{3, 3, Float64, 9}
+    face_local_nodes::Vector{Matrix{Int}}  # maps (face, j, i) -> global node id
 end
 
 # -- Internal: Bounds Checking --
@@ -42,63 +43,69 @@ function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
     R <= 0 && throw(ArgumentError("R must be positive, got $R"))
 
     M = Sphere(2)
-    n_nodes_per_face = (n + 1) * (n + 1)
 
-    # Build nodes for each of 6 faces
-    # Face-local coordinates (s, t) in [-1, 1] with (n+1) points per dimension
+    # --- Generate face-local nodes and map to global unique nodes ---
+    # Use a dictionary keyed by rounded coordinates to find duplicates
+    tol = 1e-12
+    node_map = Dict{SVector{3, Float64}, Int}()
     nodes = SVector{3, Float64}[]
-    face_node_offset = Int[]
+
+    # face_local_nodes[face][j,i] = global_node_id
+    face_local_nodes = [Matrix{Int}(undef, n + 1, n + 1) for _ in 1:6]
 
     for face in 1:6
-        push!(face_node_offset, length(nodes))
-        for j in 0:n
+        for j in 0:n, i in 0:n
+            s = -1.0 + 2.0 * i / n
             t = -1.0 + 2.0 * j / n
-            for i in 0:n
-                s = -1.0 + 2.0 * i / n
-                p = _cubed_sphere_face_point(face, s, t, projection)
-                p_rot = rotation * p
-                p_scaled = R * normalize(p_rot)
-                push!(nodes, p_scaled)
+            p = _cubed_sphere_face_point(face, s, t, projection)
+            p = rotation * p
+            p = R * normalize(p)
+
+            # Round to tol to catch floating-point duplicates
+            key = SVector(
+                round(p[1] / tol) * tol,
+                round(p[2] / tol) * tol,
+                round(p[3] / tol) * tol)
+
+            if haskey(node_map, key)
+                face_local_nodes[face][j + 1, i + 1] = node_map[key]
+            else
+                global_id = length(nodes) + 1
+                push!(nodes, SVector{3, Float64}(p))
+                node_map[key] = global_id
+                face_local_nodes[face][j + 1, i + 1] = global_id
             end
         end
     end
 
-    # Pre-compute cell volumes and centroids
+    # --- Pre-compute cell volumes and centroids ---
     n_cells = 6 * n * n
     cell_volumes = Vector{Float64}(undef, n_cells)
     cell_centroids = Vector{SVector{3, Float64}}(undef, n_cells)
 
     for face in 1:6
-        offset = face_node_offset[face]
-        for j in 1:n
-            for i in 1:n
-                cell_id = _cubed_sphere_cell_id(n, face, i, j)
-                # SW, SE, NE, NW node indices within this face
-                sw = offset + (j - 1) * (n + 1) + i
-                se = offset + (j - 1) * (n + 1) + (i + 1)
-                ne = offset + j * (n + 1) + (i + 1)
-                nw = offset + j * (n + 1) + i
+        for j in 1:n, i in 1:n
+            cell_id = _cubed_sphere_cell_id(n, face, i, j)
+            local_n = face_local_nodes[face]
 
-                A = nodes[sw]
-                B = nodes[se]
-                C = nodes[ne]
-                D = nodes[nw]
+            A = nodes[local_n[j, i]]       # SW
+            B = nodes[local_n[j, i + 1]]   # SE
+            C = nodes[local_n[j + 1, i + 1]]  # NE
+            D = nodes[local_n[j + 1, i]]      # NW
 
-                area = spherical_triangle_area(R, A, B, C) +
-                       spherical_triangle_area(R, A, C, D)
-                cell_volumes[cell_id] = area
+            area = spherical_triangle_area(R, A, B, C) +
+                   spherical_triangle_area(R, A, C, D)
+            cell_volumes[cell_id] = area
 
-                verts = [A, B, C, D]
-                c = Manifolds.mean(M, verts)
-                cell_centroids[cell_id] = SVector{3, Float64}(c)
-            end
+            c = Manifolds.mean(M, (A, B, C, D))
+            cell_centroids[cell_id] = SVector{3, Float64}(c)
         end
     end
 
-    return CubedSphereGrid(
+    return CubedSphereGrid{typeof(M)}(
         M, n, R, nodes, cell_volumes, cell_centroids,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing),
-        rotation)
+        rotation, face_local_nodes)
 end
 
 # -- Face Parameterization Functions --
@@ -159,11 +166,15 @@ PatchStyle(::Type{<:CubedSphereGrid}) = MultiPatch{6}()
 
 has_dual(g::CubedSphereGrid) = g._dual[] !== nothing
 
+function dual(g::CubedSphereGrid)
+    error("dual construction for CubedSphereGrid is not yet implemented")
+end
+
 # -- Global Information --
 
 manifold(g::CubedSphereGrid) = g.manifold
 num_cells(g::CubedSphereGrid) = 6 * g.n * g.n
-num_nodes(g::CubedSphereGrid) = 6 * (g.n + 1) * (g.n + 1) - 12 * (g.n + 1) + 8
+num_nodes(g::CubedSphereGrid) = length(g.nodes)
 num_edges(g::CubedSphereGrid) = 12 * g.n * (g.n + 1)
 
 # -- Geometry (with @boundscheck) --
@@ -189,14 +200,13 @@ function cell_nodes(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
     n = g.n
     face, (i, j) = cell_face(g, cell_id), cell_local_2d(g, cell_id)
-    n_nodes_per_face = (n + 1) * (n + 1)
-    offset = (face - 1) * n_nodes_per_face
-    # SW, SE, NE, NW
-    sw = offset + (j - 1) * (n + 1) + i
-    se = offset + (j - 1) * (n + 1) + (i + 1)
-    ne = offset + j * (n + 1) + (i + 1)
-    nw = offset + j * (n + 1) + i
-    return (sw, se, ne, nw)
+    fln = g.face_local_nodes[face]
+    return (
+        fln[j, i],       # SW
+        fln[j, i + 1],   # SE
+        fln[j + 1, i + 1],  # NE
+        fln[j + 1, i]       # NW
+    )
 end
 
 function cell_cells(g::CubedSphereGrid, cell_id::Int)
