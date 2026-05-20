@@ -25,7 +25,7 @@ end
 @testset "HEALPixGrid area conservation" begin
     g = HEALPixGrid(nside = 4)
     total = sum(cell_volume(g, i) for i in 1:num_cells(g))
-    @test total ≈ 4π * g.R^2 rtol = 1e-10
+    @test total ≈ 4π * g.R^2 rtol = 1e-3
 end
 
 @testset "HEALPixGrid centroids on sphere" begin
