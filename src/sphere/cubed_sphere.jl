@@ -1,4 +1,3 @@
-using Manifolds: Sphere
 using StaticArrays: SMatrix
 
 struct CubedSphereGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
@@ -10,7 +9,6 @@ struct CubedSphereGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     cell_centroids::Vector{SVector{3, Float64}}
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
     rotation::SMatrix{3, 3, Float64, 9}
-    face_local_nodes::Vector{Matrix{Int}}  # maps (face, j, i) -> global node id
 end
 
 # -- Internal: Bounds Checking --
@@ -33,85 +31,96 @@ end
     nothing
 end
 
+"""
+    CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic, rotation = I, R::Float64 = 1.0)
+
+Construct a cubed-sphere grid on the sphere.
+
+# Arguments
+- `n`: Number of cells per face edge (≥ 1). Cell count = 6 × n²
+- `projection`: `:gnomonic` (default) or `:equiangular`
+- `rotation`: 3×3 rotation matrix applied to all nodes
+- `R`: Sphere radius (default 1.0)
+
+The cubed-sphere projects the 6 faces of a cube onto the sphere.
+Each face is an n×n structured grid. Nodes are not deduplicated
+across face boundaries in this implementation.
+"""
 function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
-        rotation::SMatrix{3, 3, Float64, 9} = SMatrix{3, 3, Float64}(I),
-        R::Float64 = 1.0)
-    # Validate
-    n < 1 && throw(ArgumentError("n must be >= 1, got $n"))
-    projection ∉ (:gnomonic, :equiangular) &&
+        rotation = SMatrix{3, 3, Float64, 9}(I), R::Float64 = 1.0)
+    n >= 1 || throw(ArgumentError("n must be >= 1, got $n"))
+    projection in (:gnomonic, :equiangular) ||
         throw(ArgumentError("projection must be :gnomonic or :equiangular, got $projection"))
-    R <= 0 && throw(ArgumentError("R must be positive, got $R"))
+    R > 0 || throw(ArgumentError("R must be positive, got $R"))
+    rotation = convert(SMatrix{3, 3, Float64, 9}, rotation)
 
     M = Sphere(2)
 
-    # --- Generate face-local nodes and map to global unique nodes ---
-    # Use a dictionary keyed by rounded coordinates to find duplicates
-    tol = 1e-12
-    node_map = Dict{SVector{3, Float64}, Int}()
-    nodes = SVector{3, Float64}[]
+    # Each face has (n+1) x (n+1) nodes in local (s,t) coordinates.
+    # For this initial implementation, nodes are NOT deduplicated across face
+    # boundaries — each face stores its own copy of edge/corner nodes.
+    nn_face = (n + 1) * (n + 1)
+    face_node_offset = [0, 1, 2, 3, 4, 5] .* nn_face
 
-    # face_local_nodes[face][j,i] = global_node_id
-    face_local_nodes = [Matrix{Int}(undef, n + 1, n + 1) for _ in 1:6]
+    nodes = SVector{3, Float64}[]
+    sizehint!(nodes, 6 * nn_face)
 
     for face in 1:6
-        for j in 0:n, i in 0:n
-            s = -1.0 + 2.0 * i / n
+        for j in 0:n
             t = -1.0 + 2.0 * j / n
-            p = _cubed_sphere_face_point(face, s, t, projection)
-            p = rotation * p
-            p = R * normalize(p)
-
-            # Round to tol to catch floating-point duplicates
-            key = SVector(
-                round(p[1] / tol) * tol,
-                round(p[2] / tol) * tol,
-                round(p[3] / tol) * tol)
-
-            if haskey(node_map, key)
-                face_local_nodes[face][j + 1, i + 1] = node_map[key]
-            else
-                global_id = length(nodes) + 1
-                push!(nodes, SVector{3, Float64}(p))
-                node_map[key] = global_id
-                face_local_nodes[face][j + 1, i + 1] = global_id
+            for i in 0:n
+                s = -1.0 + 2.0 * i / n
+                p = _cubed_sphere_face_point(face, s, t, projection)
+                p = rotation * p
+                p = R * normalize(p)
+                push!(nodes, p)
             end
         end
     end
 
-    # --- Pre-compute cell volumes and centroids ---
-    n_cells = 6 * n * n
-    cell_volumes = Vector{Float64}(undef, n_cells)
-    cell_centroids = Vector{SVector{3, Float64}}(undef, n_cells)
+    # Pre-compute cell volumes (two spherical triangles per quad)
+    ncells = 6 * n * n
+    cell_volumes = Vector{Float64}(undef, ncells)
+    cell_centroids = Vector{SVector{3, Float64}}(undef, ncells)
 
     for face in 1:6
-        for j in 1:n, i in 1:n
-            cell_id = _cubed_sphere_cell_id(n, face, i, j)
-            local_n = face_local_nodes[face]
+        offset = face_node_offset[face]
+        for j in 1:n
+            for i in 1:n
+                cell_id = _cubed_sphere_cell_id(n, face, i, j)
 
-            A = nodes[local_n[j, i]]       # SW
-            B = nodes[local_n[j, i + 1]]   # SE
-            C = nodes[local_n[j + 1, i + 1]]  # NE
-            D = nodes[local_n[j + 1, i]]      # NW
+                # Node indices within face: row-major (i + 1, j + 1) for (n+1) x (n+1)
+                sw = offset + (j - 1) * (n + 1) + i
+                se = offset + (j - 1) * (n + 1) + (i + 1)
+                ne = offset + j * (n + 1) + (i + 1)
+                nw = offset + j * (n + 1) + i
 
-            area = spherical_triangle_area(R, A, B, C) +
-                   spherical_triangle_area(R, A, C, D)
-            cell_volumes[cell_id] = area
+                A = nodes[sw]
+                B = nodes[se]
+                C = nodes[ne]
+                D = nodes[nw]
 
-            c = Manifolds.mean(M, (A, B, C, D))
-            cell_centroids[cell_id] = SVector{3, Float64}(c)
+                area = spherical_triangle_area(R, A, B, C) +
+                       spherical_triangle_area(R, A, C, D)
+                cell_volumes[cell_id] = area
+
+                verts = [A, B, C, D]
+                c = Manifolds.mean(M, verts)
+                cell_centroids[cell_id] = SVector{3, Float64}(c)
+            end
         end
     end
 
-    return CubedSphereGrid{typeof(M)}(
+    return CubedSphereGrid(
         M, n, R, nodes, cell_volumes, cell_centroids,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing),
-        rotation, face_local_nodes)
+        rotation)
 end
 
-# -- Face Parameterization Functions --
+# -- Face Parameterization --
 
 function _cubed_sphere_face_point(face::Int, s::Float64, t::Float64, projection::Symbol)
-    if projection === :gnomonic
+    if projection == :gnomonic
         return _gnomonic_point(face, s, t)
     else
         return _equiangular_point(face, s, t)
@@ -119,39 +128,46 @@ function _cubed_sphere_face_point(face::Int, s::Float64, t::Float64, projection:
 end
 
 function _gnomonic_point(face::Int, s::Float64, t::Float64)
-    # Face normals: +Z(1), -Z(2), +Y(3), -Y(4), +X(5), -X(6)
+    # Face normals:
+    #   1: +Z, 2: -Z, 3: +Y, 4: -Y, 5: +X, 6: -X
     if face == 1
-        return normalize(SVector(s, t, 1.0))
+        p = SVector(s, t, 1.0)
     elseif face == 2
-        return normalize(SVector(s, t, -1.0))
+        p = SVector(-s, t, -1.0)
     elseif face == 3
-        return normalize(SVector(s, 1.0, t))
+        p = SVector(s, 1.0, -t)
     elseif face == 4
-        return normalize(SVector(s, -1.0, t))
+        p = SVector(s, -1.0, t)
     elseif face == 5
-        return normalize(SVector(1.0, s, t))
+        p = SVector(1.0, t, -s)
     else  # face == 6
-        return normalize(SVector(-1.0, s, t))
+        p = SVector(-1.0, t, s)
     end
+    return normalize(p)
 end
 
 function _equiangular_point(face::Int, s::Float64, t::Float64)
-    # Map s, t in [-1, 1] via atan to get angular coordinates
-    α = atan(s)
-    β = atan(t)
+    a = atan(s)
+    b = atan(t)
+    cos_a = cos(a)
+    sin_a = sin(a)
+    cos_b = cos(b)
+    sin_b = sin(b)
+
     if face == 1
-        return normalize(SVector(tan(α), tan(β), 1.0))
+        p = SVector(sin_a * cos_b, cos_a * sin_b, cos_a * cos_b)
     elseif face == 2
-        return normalize(SVector(tan(α), tan(β), -1.0))
+        p = SVector(-sin_a * cos_b, cos_a * sin_b, -cos_a * cos_b)
     elseif face == 3
-        return normalize(SVector(tan(α), 1.0, tan(β)))
+        p = SVector(sin_a * cos_b, cos_a * cos_b, -cos_a * sin_b)
     elseif face == 4
-        return normalize(SVector(tan(α), -1.0, tan(β)))
+        p = SVector(sin_a * cos_b, -cos_a * cos_b, cos_a * sin_b)
     elseif face == 5
-        return normalize(SVector(1.0, tan(α), tan(β)))
+        p = SVector(cos_a * cos_b, cos_a * sin_b, -sin_a * cos_b)
     else  # face == 6
-        return normalize(SVector(-1.0, tan(α), tan(β)))
+        p = SVector(-cos_a * cos_b, cos_a * sin_b, sin_a * cos_b)
     end
+    return normalize(p)
 end
 
 function _cubed_sphere_cell_id(n::Int, face::Int, i::Int, j::Int)
@@ -166,16 +182,22 @@ PatchStyle(::Type{<:CubedSphereGrid}) = MultiPatch{6}()
 
 has_dual(g::CubedSphereGrid) = g._dual[] !== nothing
 
-function dual(g::CubedSphereGrid)
-    error("dual construction for CubedSphereGrid is not yet implemented")
-end
-
 # -- Global Information --
 
 manifold(g::CubedSphereGrid) = g.manifold
 num_cells(g::CubedSphereGrid) = 6 * g.n * g.n
-num_nodes(g::CubedSphereGrid) = length(g.nodes)
-num_edges(g::CubedSphereGrid) = 12 * g.n * (g.n + 1)
+
+function num_nodes(g::CubedSphereGrid)
+    n = g.n
+    # Nodes are NOT deduplicated across face boundaries in this implementation.
+    # Each face stores its own copy of edge/corner nodes.
+    return 6 * (n + 1) * (n + 1)
+end
+
+function num_edges(g::CubedSphereGrid)
+    n = g.n
+    return 12 * n * (n + 1)
+end
 
 # -- Geometry (with @boundscheck) --
 
@@ -199,47 +221,139 @@ end
 function cell_nodes(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
     n = g.n
-    face, (i, j) = cell_face(g, cell_id), cell_local_2d(g, cell_id)
-    fln = g.face_local_nodes[face]
-    return (
-        fln[j, i],       # SW
-        fln[j, i + 1],   # SE
-        fln[j + 1, i + 1],  # NE
-        fln[j + 1, i]       # NW
-    )
+    face = div(cell_id - 1, n * n) + 1
+    local_id = rem(cell_id - 1, n * n) + 1
+    j = div(local_id - 1, n) + 1
+    i = rem(local_id - 1, n) + 1
+
+    nn_face = (n + 1) * (n + 1)
+    offset = (face - 1) * nn_face
+
+    sw = offset + (j - 1) * (n + 1) + i
+    se = offset + (j - 1) * (n + 1) + (i + 1)
+    ne = offset + j * (n + 1) + (i + 1)
+    nw = offset + j * (n + 1) + i
+
+    return (sw, se, ne, nw)
 end
 
 function cell_cells(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    error("cell_cells not yet implemented for CubedSphereGrid")
+    n = g.n
+    face = div(cell_id - 1, n * n) + 1
+    local_id = rem(cell_id - 1, n * n) + 1
+    j = div(local_id - 1, n) + 1
+    i = rem(local_id - 1, n) + 1
+
+    west = i > 1 ? _cubed_sphere_cell_id(n, face, i - 1, j) : 0
+    east = i < n ? _cubed_sphere_cell_id(n, face, i + 1, j) : 0
+    south = j > 1 ? _cubed_sphere_cell_id(n, face, i, j - 1) : 0
+    north = j < n ? _cubed_sphere_cell_id(n, face, i, j + 1) : 0
+
+    return (south, north, west, east)
 end
 
 function node_cells(g::CubedSphereGrid, node_id::Int)
     _check_node_id(g, node_id)
-    error("node_cells not yet implemented for CubedSphereGrid")
+    cells = Int[]
+    for cell_id in 1:num_cells(g)
+        if node_id in cell_nodes(g, cell_id)
+            push!(cells, cell_id)
+        end
+    end
+    return cells
 end
 
 function cell_edges(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    error("cell_edges not yet implemented for CubedSphereGrid")
+    n = g.n
+    face = div(cell_id - 1, n * n) + 1
+    local_id = rem(cell_id - 1, n * n) + 1
+    j = div(local_id - 1, n) + 1
+    i = rem(local_id - 1, n) + 1
+
+    face_edge_offset = (face - 1) * 2 * n * (n + 1)
+    h_edges_per_face = (n + 1) * n
+
+    # South edge (horizontal, row j)
+    south = face_edge_offset + (j - 1) * n + i
+    # North edge (horizontal, row j+1)
+    north = face_edge_offset + j * n + i
+    # West edge (vertical, column i)
+    west = face_edge_offset + h_edges_per_face + (j - 1) * (n + 1) + i
+    # East edge (vertical, column i+1)
+    east = face_edge_offset + h_edges_per_face + (j - 1) * (n + 1) + (i + 1)
+
+    return (south, north, west, east)
 end
 
-# -- Edge Stubs --
+# -- Edge Geometry --
+
+function _edge_endpoints(g::CubedSphereGrid, edge_id::Int)
+    n = g.n
+    face_edges = 2 * n * (n + 1)
+    face = div(edge_id - 1, face_edges) + 1
+    local_edge = rem(edge_id - 1, face_edges) + 1
+    h_edges = (n + 1) * n
+
+    nn_face = (n + 1) * (n + 1)
+    node_offset = (face - 1) * nn_face
+
+    if local_edge <= h_edges
+        # Horizontal edge: along a row
+        idx = local_edge - 1
+        j = div(idx, n) + 1
+        i = rem(idx, n) + 1
+        n1 = node_offset + (j - 1) * (n + 1) + i
+        n2 = node_offset + (j - 1) * (n + 1) + (i + 1)
+    else
+        # Vertical edge: along a column
+        idx = local_edge - h_edges - 1
+        j = div(idx, n + 1) + 1
+        i = rem(idx, n + 1) + 1
+        n1 = node_offset + (j - 1) * (n + 1) + i
+        n2 = node_offset + j * (n + 1) + i
+    end
+
+    return (node_coordinates(g, n1), node_coordinates(g, n2))
+end
 
 function edge_length(g::CubedSphereGrid, edge_id::Int)
     _check_edge_id(g, edge_id)
-    error("edge_length not yet implemented for CubedSphereGrid")
+    n1, n2 = _edge_endpoints(g, edge_id)
+    return Manifolds.distance(g.manifold, n1, n2)
 end
 
 function edge_midpoint(g::CubedSphereGrid, edge_id::Int)
     _check_edge_id(g, edge_id)
-    error("edge_midpoint not yet implemented for CubedSphereGrid")
+    n1, n2 = _edge_endpoints(g, edge_id)
+    if Manifolds.distance(g.manifold, n1, n2) < 1e-14
+        return SVector{3, Float64}(n1)
+    end
+    return SVector{3, Float64}(Manifolds.mid_point(g.manifold, n1, n2))
 end
 
 function edge_outward_normal(g::CubedSphereGrid, edge_id::Int, cell_id::Int)
     _check_edge_id(g, edge_id)
     _check_cell_id(g, cell_id)
-    error("edge_outward_normal not yet implemented for CubedSphereGrid")
+    n1, n2 = _edge_endpoints(g, edge_id)
+
+    if Manifolds.distance(g.manifold, n1, n2) < 1e-14
+        midpoint = n1
+        return (base_point = SVector{3, Float64}(midpoint),
+            normal = zero(SVector{3, Float64}))
+    end
+
+    midpoint = Manifolds.mid_point(g.manifold, n1, n2)
+    gc_normal = cross(SVector(n1), SVector(n2))
+    tangent = normalize(cross(gc_normal, SVector(midpoint)))
+    cell_c = cell_centroid(g, cell_id)
+    cell_side = sign(dot(gc_normal, SVector(cell_c)))
+    outward = cell_side * cross(tangent, SVector(midpoint))
+    outward = Manifolds.project(g.manifold, midpoint, outward)
+
+    return (base_point = SVector{3, Float64}(midpoint),
+        normal = SVector{3, Float64}(outward))
 end
 
 # -- Boundary --
@@ -249,16 +363,27 @@ boundary_edges(g::CubedSphereGrid, marker) = Int[]
 
 # -- Patch Queries --
 
+"""
+    cell_face(g::CubedSphereGrid, cell_id::Int) -> Int
+
+Return the face index (1–6) containing `cell_id`.
+"""
 function cell_face(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    return div(cell_id - 1, g.n * g.n) + 1
+    n = g.n
+    return div(cell_id - 1, n * n) + 1
 end
 
+"""
+    cell_local_2d(g::CubedSphereGrid, cell_id::Int) -> Tuple{Int, Int}
+
+Return the local 2D indices `(i, j)` of `cell_id` within its face.
+"""
 function cell_local_2d(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
     n = g.n
     local_id = rem(cell_id - 1, n * n) + 1
-    i = rem(local_id - 1, n) + 1
     j = div(local_id - 1, n) + 1
+    i = rem(local_id - 1, n) + 1
     return (i, j)
 end
