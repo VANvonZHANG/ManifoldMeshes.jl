@@ -158,8 +158,6 @@ end
 
 @testset "CubedSphereGrid unimplemented stubs" begin
     g = CubedSphereGrid(n = 2)
-
-    @test_throws ErrorException node_cells(g, 1)
 end
 
 @testset "CubedSphereGrid rotation effect" begin
@@ -190,4 +188,13 @@ end
     g = CubedSphereGrid(n = 3)
     @test num_nodes(g) == 6 * (3 + 1)^2
     @test num_edges(g) == 12 * 3 * (3 + 1)
+end
+
+@testset "CubedSphereGrid node_cells" begin
+    g = CubedSphereGrid(n = 2)
+    for i in [1, num_nodes(g) ÷ 2, num_nodes(g)]
+        cells = node_cells(g, i)
+        @test cells isa Vector{Int}
+        @test all(c -> 1 <= c <= num_cells(g), cells)
+    end
 end

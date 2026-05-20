@@ -255,7 +255,13 @@ end
 
 function node_cells(g::CubedSphereGrid, node_id::Int)
     _check_node_id(g, node_id)
-    error("node_cells not yet implemented for CubedSphereGrid")
+    cells = Int[]
+    for cell_id in 1:num_cells(g)
+        if node_id in cell_nodes(g, cell_id)
+            push!(cells, cell_id)
+        end
+    end
+    return cells
 end
 
 function cell_edges(g::CubedSphereGrid, cell_id::Int)
