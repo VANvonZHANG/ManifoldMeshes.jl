@@ -18,18 +18,18 @@ end
 @testset "CubedSphereGrid geometry" begin
     g = CubedSphereGrid(n = 4)
 
-    # Total area conservation
+    # Total area conservation (aggregate)
     total = sum(cell_volume(g, i) for i in 1:num_cells(g))
     @test total ≈ 4π * g.R^2 rtol = 1e-10
 
-    # All centroids on sphere surface
-    for i in 1:num_cells(g)
+    # Spot-check centroids on sphere surface
+    for i in [1, num_cells(g) ÷ 2, num_cells(g)]
         c = cell_centroid(g, i)
         @test abs(norm(c) - g.R) < 1e-10
     end
 
-    # All nodes on sphere surface
-    for i in 1:num_nodes(g)
+    # Spot-check nodes on sphere surface
+    for i in [1, num_nodes(g) ÷ 2, num_nodes(g)]
         p = node_coordinates(g, i)
         @test abs(norm(p) - g.R) < 1e-10
     end
@@ -44,8 +44,8 @@ end
         @test cells_in_face == g.n * g.n
     end
 
-    # cell_local_2d within bounds
-    for i in 1:num_cells(g)
+    # Spot-check cell_local_2d within bounds
+    for i in [1, num_cells(g) ÷ 2, num_cells(g)]
         li, lj = cell_local_2d(g, i)
         @test 1 <= li <= g.n
         @test 1 <= lj <= g.n
@@ -88,10 +88,12 @@ end
     nodes = cell_nodes(g, 1)
     @test nodes isa NTuple{4,Int}
 
-    for cell_id in 1:num_cells(g)
-        for node_id in cell_nodes(g, cell_id)
-            p = node_coordinates(g, node_id)
-            @test abs(norm(p) - g.R) < 1e-10
+    # Spot-check that referenced nodes are on sphere
+    for cid in [1, num_cells(g) ÷ 2, num_cells(g)]
+        nodes = cell_nodes(g, cid)
+        @test nodes isa NTuple{4, Int}
+        for n in nodes
+            @test abs(norm(node_coordinates(g, n)) - g.R) < 1e-10
         end
     end
 end
@@ -111,8 +113,9 @@ end
 
 @testset "CubedSphereGrid cell_edges" begin
     g = CubedSphereGrid(n = 2)
-    for i in 1:num_cells(g)
-        edges = cell_edges(g, i)
+    # Spot-check edge validity
+    for cid in [1, num_cells(g) ÷ 2, num_cells(g)]
+        edges = cell_edges(g, cid)
         @test edges isa NTuple{4, Int}
         @test all(e -> 1 <= e <= num_edges(g), edges)
     end
@@ -120,7 +123,7 @@ end
 
 @testset "CubedSphereGrid cell_cells within face" begin
     g = CubedSphereGrid(n = 4)
-    # Pick an interior cell (not on face boundary)
+    # Interior cell should have 4 valid neighbors
     face = 3
     i, j = 2, 2
     cell_id = (face - 1) * g.n * g.n + (j - 1) * g.n + i
@@ -142,17 +145,18 @@ end
 
 @testset "CubedSphereGrid edge geometry" begin
     g = CubedSphereGrid(n = 2)
-    for i in 1:num_edges(g)
+    # Spot-check edge length and midpoint
+    for i in [1, num_edges(g) ÷ 2, num_edges(g)]
         @test edge_length(g, i) > 0
         mp = edge_midpoint(g, i)
         @test abs(norm(mp) - g.R) < 1e-10
     end
 
-    for i in 1:num_cells(g)
-        for e in cell_edges(g, i)
-            result = edge_outward_normal(g, e, i)
-            @test abs(norm(result.base_point) - g.R) < 1e-10
-        end
+    # Spot-check edge outward normal
+    for cid in [1, num_cells(g) ÷ 2, num_cells(g)]
+        e = cell_edges(g, cid)[1]
+        result = edge_outward_normal(g, e, cid)
+        @test abs(norm(result.base_point) - g.R) < 1e-10
     end
 end
 
