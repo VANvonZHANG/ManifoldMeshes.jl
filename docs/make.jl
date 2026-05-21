@@ -13,6 +13,16 @@ makedocs(;
     ),
     pages = [
         "Home" => "index.md",
+        "Tutorial" => "tutorial.md",
+        "Theory" => "theory.md",
+        "Grid Types" => [
+            "LatLonGrid" => "grids/latlon.md",
+            "CubedSphereGrid" => "grids/cubed_sphere.md",
+            "ReducedGaussianGrid" => "grids/reduced_gaussian.md",
+            "HEALPixGrid" => "grids/healpix.md",
+        ],
+        "Visualization" => "visualization.md",
+        "API Reference" => "api.md",
     ]
 )
 
