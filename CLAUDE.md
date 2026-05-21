@@ -1,6 +1,6 @@
 # ManifoldMeshes.jl
 
-Mesh infrastructure for scientific computing on manifolds. Currently provides latitude-longitude grids on the unit sphere (S²).
+Mesh infrastructure for scientific computing on manifolds. Provides structured and semi-structured grids on the unit sphere (S²): `LatLonGrid`, `CubedSphereGrid`, `ReducedGaussianGrid`, and `HEALPixGrid`.
 
 ## Commands
 
@@ -32,24 +32,43 @@ save("mesh.png", fig)
 ```
 src/
 ├── ManifoldMeshes.jl    # Module entry, exports, includes
-├── traits.jl            # TopologyStyle (IsGrid/IsMesh), AbstractLocation (NodeLoc/CellLoc/EdgeLoc)
-├── interface.jl         # AbstractManifoldMesh + 15 function stubs
-├── visualization/
-│   ├── mesh_data.jl     # Data extraction: node_points, edge_segments, cell_polygons
-│   └── plotting.jl      # plot_mesh, plot_mesh_filled (requires Makie at runtime)
-└── sphere/
-    └── latlon.jl        # LatLonGrid implementation
+├── traits.jl            # TopologyStyle, CellTypeStyle, PatchStyle, AbstractLocation, MixedCellTopology
+├── interface.jl         # AbstractManifoldMesh + full function interface
+├── dual.jl              # AbstractDualMesh + lazy dual mesh framework
+├── sphere/
+│   ├── utils.jl         # Shared: _spherical_triangle_area, _lune_area
+│   ├── latlon.jl        # LatLonGrid (structured lat-lon, IsGrid)
+│   ├── cubed_sphere.jl  # CubedSphereGrid (gnomonic projection, 6-face, IsSemiGrid)
+│   ├── reduced_gaussian.jl  # ReducedGaussianGrid (Gaussian lat bands, IsSemiGrid)
+│   └── healpix.jl       # HEALPixGrid (Nside hierarchical, IsSemiGrid)
+└── visualization/
+    ├── mesh_data.jl     # Data extraction: node_points, edge_segments, cell_polygons
+    └── plotting.jl      # plot_mesh, plot_mesh_filled (requires Makie at runtime)
 ```
 
 **Type hierarchy:**
 - `AbstractManifoldMesh{M}` — parameterized by Manifolds.jl manifold type
-- `LatLonGrid{M} <: AbstractManifoldMesh{M}` — only concrete implementation
+  - `LatLonGrid{M} <: AbstractManifoldMesh{M}` — structured lat-lon (`IsGrid`)
+  - `CubedSphereGrid{M} <: AbstractManifoldMesh{M}` — cubed-sphere (`IsSemiGrid`, `MultiPatch`)
+  - `ReducedGaussianGrid{M} <: AbstractManifoldMesh{M}` — Gaussian lat bands (`IsSemiGrid`)
+  - `HEALPixGrid{M} <: AbstractManifoldMesh{M}` — HEALPix hierarchical (`IsSemiGrid`)
+  - `AbstractDualMesh{M} <: AbstractManifoldMesh{M}` — lazy dual mesh marker
+
+**Trait system:**
+- `TopologyStyle`: `IsGrid` | `IsSemiGrid` | `IsMesh`
+- `CellTypeStyle`: `IsUniform{K}` | `IsMixed{MAX_K}`
+- `PatchStyle`: `NoPatch` | `MultiPatch`
+- `AbstractLocation`: `NodeLoc` | `CellLoc` | `EdgeLoc`
 
 **Interface functions** (all take `AbstractManifoldMesh`):
 - Properties: `manifold`, `num_cells`, `num_nodes`, `num_edges`
-- Geometry: `node_coordinates`, `cell_volume`, `cell_centroid`, `edge_length`, `edge_midpoint`, `edge_outward_normal`
+- Geometry: `node_coordinates`, `cell_volume`, `cell_centroid`
 - Topology: `cell_nodes`, `cell_cells`, `node_cells`, `cell_edges`
+- Edge: `edge_length`, `edge_midpoint`, `edge_outward_normal`
 - Boundary: `boundary_nodes`, `boundary_edges`
+- Dual: `dual`, `has_dual`
+- Patch (cubed-sphere): `cell_face`, `cell_local_2d`
+- Visualization: `slerp`, `node_points`, `edge_segments`, `cell_polygons`, `plot_mesh`, `plot_mesh_filled`
 
 ## Code Style
 
@@ -64,20 +83,26 @@ src/
 - Every public function must have a test
 - Always test edge cases: polar cells, periodic boundaries, degenerate diagonals
 - Fundamental sanity checks: `Σ cell_volume = 4πR²`
-- Test files: `test_traits.jl`, `test_latlon_{construction,geometry,connectivity,normals,edge_cases}.jl`, `test_performance.jl`, `test_visualization_data.jl`, `test_visualization_smoke.jl`
+- Spot-check pattern: avoid exhaustive loops over all cells; test representative indices
+- Test files: `test_traits.jl`, `test_latlon_{construction,geometry,connectivity,normals,edge_cases}.jl`, `test_cubed_sphere.jl`, `test_reduced_gaussian.jl`, `test_healpix.jl`, `test_dual.jl`, `test_performance.jl`, `test_visualization_{data,smoke}.jl`
 
 ## Dependencies
 
 - `Manifolds.jl` / `ManifoldsBase.jl` for all manifold geometry
 - `StaticArrays.jl` for `SVector` and `NTuple` (zero GC pressure)
+- `CairoMakie.jl` / `GeometryBasics.jl` for visualization (should become weak deps)
 - Never add a new dependency without strong justification
 
 ## Gotchas
 
 - Full-sphere grids have **no boundary** — `boundary_nodes` and `boundary_edges` return empty vectors
-- Node at lon=0 and lon=360 are the **same physical point** with different linear IDs
+- Node at lon=0 and lon=360 are the **same physical point** with different linear IDs (LatLonGrid)
 - `edge_outward_normal` returns `NamedTuple{:base_point, :normal}` (tangent space semantics), not a plain vector
 - `plot_mesh` requires Makie to be loaded **before** calling — run `using CairoMakie` or `using GLMakie` first
+- HEALPix uses Morton/Z-order curve for nested ordering — cell IDs follow hierarchical pixel numbering
+- CubedSphereGrid nodes are merged across face boundaries — shared edge nodes have single global IDs
+- ReducedGaussianGrid has `IsUniform{4}` cells but variable node counts per latitude band
+- `dual()` computes lazily on first call and caches the result in `_dual::RefValue`
 
 ## Commit Convention
 
