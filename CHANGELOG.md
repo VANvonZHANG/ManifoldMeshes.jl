@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **CubedSphereGrid**: cubed-sphere grid via gnomonic/equiangular projection with 6 faces, node merging across face boundaries, `cell_face` and `cell_local_2d` patch queries
+- **ReducedGaussianGrid**: Gaussian latitude bands with pole-aware equal-area cell construction and reduced longitude count per band
+- **HEALPixGrid**: HEALPix hierarchical equal-area pixelization with nested (Morton/Z-order) and ring ordering support
+- **Trait system**: `IsSemiGrid` topology style, `CellTypeStyle` (`IsUniform{K}`/`IsMixed{MAX_K}`), `PatchStyle` (`NoPatch`/`MultiPatch`), `MixedCellTopology`
+- **Dual mesh framework**: `AbstractDualMesh{M}`, lazy `dual()` computation with `RefValue` caching, `has_dual` query
+- **Full topology for all grid types**: `cell_nodes`, `cell_cells`, `node_cells`, `cell_edges` implemented across all 4 grid types
+- **Edge geometry for all grid types**: `edge_length`, `edge_midpoint`, `edge_outward_normal` for LatLonGrid, CubedSphereGrid, ReducedGaussianGrid, HEALPixGrid
+- **Shared utilities**: `spherical_triangle_area` and `lune_area` extracted to `sphere/utils.jl`
+- **Docstrings** for all grid constructors, patch queries, and trait types
+- **Tests**: 387 tests covering all 4 grid types, traits, dual mesh, visualization data extraction, and performance baselines
+
+### Changed
+
+- Consolidated exhaustive test loops to spot-check pattern across all grid types (reduced from ~1700 to 387 tests while maintaining coverage)
+
 ## [0.2.0] - 2026-05-10
 
 ### Added
