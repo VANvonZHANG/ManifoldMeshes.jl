@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
-    name: Julia 1.11 - ubuntu-latest
+    name: Julia 1.10 - ubuntu-latest
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
