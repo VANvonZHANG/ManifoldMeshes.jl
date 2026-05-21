@@ -18,6 +18,7 @@ jobs:
         shell: julia --color=yes {0}
         run: |
           using Pkg
+          Pkg.activate(temp=true)
           Pkg.add("JuliaFormatter")
       - name: Check formatting
         shell: julia --color=yes {0}
@@ -29,7 +30,9 @@ jobs:
           if git diff --quiet; then
             echo "Formatting OK."
           else
-            echo "ERROR: Code is not formatted. Run 'julia -e '"'"'using JuliaFormatter; format(\".\")'"'"' locally and commit the changes."
+            echo "ERROR: Code is not formatted."
+            echo "Run locally: julia -e 'using JuliaFormatter; format(\".\")'"
+            echo "Then commit the changes."
             git diff --stat
             exit 1
           fi
