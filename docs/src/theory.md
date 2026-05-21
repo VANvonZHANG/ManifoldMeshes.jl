@@ -24,7 +24,7 @@ By keeping these concerns separate, the same topological structure (e.g., a regu
 
 ## Part 2: Grid Construction Principles
 
-ManifoldMeshes.jl provides four grid types on $S^2$, each constructed by a different strategy. All four share the same interface (see the [API reference](@ref)) and produce cells whose boundaries are geodesic arcs.
+ManifoldMeshes.jl provides four grid types on $S^2$, each constructed by a different strategy. All four share the same interface (see the [API Reference](api.md)) and produce cells whose boundaries are geodesic arcs.
 
 ### LatLonGrid
 
@@ -86,7 +86,7 @@ which [`edge_length`](@ref) returns directly.
 
 ### Cell Volume: Spherical Excess via l'Huilier's Formula
 
-Each quadrilateral cell is split into two spherical triangles along a diagonal, and the areas of the two triangles are summed. The function [`spherical_triangle_area`](@ref) uses **l'Huilier's formula**, which expresses the area of a spherical triangle in terms of its side lengths.
+Each quadrilateral cell is split into two spherical triangles along a diagonal, and the areas of the two triangles are summed. The function `_spherical_triangle_area` uses **l'Huilier's formula**, which expresses the area of a spherical triangle in terms of its side lengths.
 
 Given a spherical triangle with side lengths $a$, $b$, $c$ (in radians on a unit sphere) and semi-perimeter $s = (a + b + c) / 2$, the **spherical excess** $E$ is
 

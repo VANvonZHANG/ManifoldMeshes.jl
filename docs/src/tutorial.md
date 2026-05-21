@@ -292,5 +292,5 @@ You have learned to:
 4. **Switch grid types** without changing any downstream code, thanks to the unified `AbstractManifoldMesh` interface.
 5. **Visualize** wireframes and filled plots with Makie.
 
-The [API reference](@ref) documents every function in detail.
-For the mathematical background behind geodesic cell boundaries and spherical geometry, see the [Theory](@ref) page.
+The [API Reference](api.md) documents every function in detail.
+For the mathematical background behind geodesic cell boundaries and spherical geometry, see the [Theory](theory.md) page.

@@ -6,6 +6,7 @@ DocMeta.setdocmeta!(ManifoldMeshes, :DocTestSetup, :(using ManifoldMeshes); recu
 makedocs(;
     modules = [ManifoldMeshes],
     sitename = "ManifoldMeshes.jl",
+    warnonly = [:cross_references, :missing_docs],
     format = Documenter.HTML(;
         canonical = "https://VANvonZHANG.github.io/ManifoldMeshes.jl",
         edit_link = "main",

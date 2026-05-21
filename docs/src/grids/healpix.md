@@ -173,7 +173,7 @@ println("Boundary edges: ", boundary_edges(grid, :default))
 - **Exact equal area.** Every cell has the same solid angle $4\pi / (12 \times \mathrm{nside}^2)$, making HEALPix ideal for Monte Carlo integration, histogram-based statistics, and any application where uniform sampling is required.
 - **Hierarchical structure.** The nested ordering and power-of-2 `nside` values create a natural multi-resolution pyramid: coarsening from `nside` to `nside/2` is a simple pixel aggregation.
 - **Iso-latitude rings.** Cells are organized along rings of constant latitude, enabling fast spherical-harmonic transforms via the HEALPix library's ring-based algorithms.
-- **No polar singularity.** Unlike [`LatLonGrid`](@ref), cells near the poles have the same area and shape as equatorial cells.
+- **No polar singularity.** Unlike [LatLonGrid](latlon.md), cells near the poles have the same area and shape as equatorial cells.
 
 ### Weaknesses
 

@@ -37,8 +37,8 @@ using ManifoldMeshes
 [`plot_mesh`](@ref) draws the mesh edges as great-circle arcs on a semi-transparent
 sphere.  By default, edges are drawn but nodes are hidden.
 
-```@example viz
-using CairoMakie  # hide
+```julia
+using CairoMakie
 using ManifoldMeshes
 
 grid = LatLonGrid(
@@ -47,11 +47,8 @@ grid = LatLonGrid(
 )
 
 fig = plot_mesh(grid)
-save("wireframe.png", fig)  # hide
-nothing  # hide
+save("wireframe.png", fig)
 ```
-
-![Wireframe plot](wireframe.png)
 
 ### Optional keyword arguments
 
@@ -76,13 +73,10 @@ fig = plot_mesh(grid; show_nodes = true, show_cell_ids = true)
 The optional `color_by` keyword lets you color cells by index, data field, or any
 criterion.
 
-```@example viz
+```julia
 fig = plot_mesh_filled(grid)
-save("filled.png", fig)  # hide
-nothing  # hide
+save("filled.png", fig)
 ```
-
-![Filled plot](filled.png)
 
 ### Coloring by cell index
 

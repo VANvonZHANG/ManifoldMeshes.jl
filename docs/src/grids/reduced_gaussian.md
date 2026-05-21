@@ -157,7 +157,7 @@ println("Boundary edges: ", boundary_edges(grid, :default))
 
 ### Strengths
 
-- **Near-equal cell areas.** The octahedral longitude reduction keeps cell sizes roughly uniform from equator to pole, avoiding the extreme area variation of [`LatLonGrid`](@ref).
+- **Near-equal cell areas.** The octahedral longitude reduction keeps cell sizes roughly uniform from equator to pole, avoiding the extreme area variation of [LatLonGrid](latlon.md).
 - **No polar singularity.** Unlike regular lat-lon grids, longitude lines do not converge at the poles, so there is no CFL restriction or numerical conditioning problem near the poles.
 - **Spectral model compatibility.** This is the standard grid for spectral transform methods (Gaussian latitudes are the natural quadrature points for Legendre transforms). Data on this grid maps directly to spherical harmonics.
 - **Pre-computed connectivity.** All topology (edges, neighbors) is derived at construction and cached, giving O(1) lookups.
@@ -165,7 +165,7 @@ println("Boundary edges: ", boundary_edges(grid, :default))
 ### Weaknesses
 
 - **Semi-structured indexing.** Because each latitude band has a different number of cells, there is no simple `(i, j)` Cartesian index. Accessing cells by latitude band requires knowing the cumulative cell offset.
-- **Approximate equal area.** Cell areas are near-equal but not exactly equal (unlike [`HEALPixGrid`](@ref), which guarantees exact equal area).
+- **Approximate equal area.** Cell areas are near-equal but not exactly equal (unlike [HEALPixGrid](healpix.md), which guarantees exact equal area).
 - **Less intuitive than LatLonGrid.** The octahedral longitude pattern and variable band widths make this grid harder to reason about manually than a simple lat-lon grid.
 
 ### Typical Use Cases
@@ -187,4 +187,4 @@ println("Boundary edges: ", boundary_edges(grid, :default))
 
 5. **`node_cells` is O(N).** The current implementation scans all cells to find those adjacent to a given node. For large grids, repeated calls to [`node_cells`](@ref) can be expensive. Consider caching results if you need them frequently.
 
-6. **Area is near-equal, not exact.** Unlike [`HEALPixGrid`](@ref), ReducedGaussianGrid does not guarantee exactly equal cell areas. The octahedral reduction provides a good approximation, but cell areas can vary by up to roughly a factor of 2 between the smallest and largest cells depending on `nlat`.
+6. **Area is near-equal, not exact.** Unlike [HEALPixGrid](healpix.md), ReducedGaussianGrid does not guarantee exactly equal cell areas. The octahedral reduction provides a good approximation, but cell areas can vary by up to roughly a factor of 2 between the smallest and largest cells depending on `nlat`.

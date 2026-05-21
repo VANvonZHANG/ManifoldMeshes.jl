@@ -190,8 +190,8 @@ println("Cell 54 => face ", cell_face(g, 54))   # face 6
 
 # Verify: each face has exactly n^2 cells
 for f in 1:6
-    count = count(i -> cell_face(g, i) == f, 1:num_cells(g))
-    println("Face $f: $count cells")
+    n_cells = count(i -> cell_face(g, i) == f, 1:num_cells(g))
+    println("Face $f: $n_cells cells")
 end
 ```
 
@@ -218,7 +218,7 @@ These two functions enable efficient patch-local algorithms: you can extract an 
 
 ### Strengths
 
-- **No polar singularity.** Unlike [`LatLonGrid`](@ref), no coordinate lines converge anywhere on the sphere. All cells remain well-conditioned quadrilaterals, making the cubed sphere suitable for global atmospheric and ocean models that require uniform CFL conditions.
+- **No polar singularity.** Unlike [LatLonGrid](latlon.md), no coordinate lines converge anywhere on the sphere. All cells remain well-conditioned quadrilaterals, making the cubed sphere suitable for global atmospheric and ocean models that require uniform CFL conditions.
 - **Quasi-uniform cell area.** The gnomonic projection distributes area much more evenly than latitude-longitude grids. The equiangular projection further reduces area variation.
 - **Structured per face.** Within each face, cells have regular $(i, j)$ indexing, enabling efficient stencil-based numerical methods (finite differences, finite volumes).
 - **Patch system.** [`cell_face`](@ref) and [`cell_local_2d`](@ref) provide natural support for distributed-memory parallelism where each MPI rank owns one or more faces.
@@ -228,7 +228,7 @@ These two functions enable efficient patch-local algorithms: you can extract an 
 
 - **Cross-face connectivity.** Cells at face boundaries report `0` for their cross-face neighbors in [`cell_cells`](@ref), rather than the adjacent face's cell ID. Algorithms that traverse neighbor chains must handle the `0` sentinel explicitly.
 - **Duplicate boundary nodes.** Nodes on shared edges and corners are not deduplicated: coincident points have different IDs. This means topological queries across faces require additional bookkeeping.
-- **Slight area variation.** The gnomonic projection does not produce perfectly equal-area cells. If exact equal area is needed, consider [`HEALPixGrid`](@ref) instead.
+- **Slight area variation.** The gnomonic projection does not produce perfectly equal-area cells. If exact equal area is needed, consider [HEALPixGrid](healpix.md) instead.
 - **Non-trivial coordinate system.** The face-local $(s, t)$ coordinates and the projection mapping are more complex than simple $(\theta, \phi)$ indexing.
 
 ### Typical Use Cases

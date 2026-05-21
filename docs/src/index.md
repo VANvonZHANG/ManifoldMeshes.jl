@@ -12,10 +12,10 @@ ManifoldMeshes provides discrete mesh structures (cells, nodes, edges) on the un
 
 | Type | Description | Topology | Cells |
 |------|-------------|----------|-------|
-| [`LatLonGrid`](@ref) | Structured latitude-longitude grid | `IsGrid` | Uniform quads |
-| [`CubedSphereGrid`](@ref) | Cubed-sphere via gnomonic projection, 6 faces | `IsSemiGrid`, `MultiPatch` | Uniform quads |
-| [`ReducedGaussianGrid`](@ref) | Gaussian latitude bands, reduced longitude count | `IsSemiGrid` | Uniform quads |
-| [`HEALPixGrid`](@ref) | Hierarchical equal-area iso-latitude pixels | `IsSemiGrid` | Uniform quads |
+| [LatLonGrid](grids/latlon.md) | Structured latitude-longitude grid | `IsGrid` | Uniform quads |
+| [CubedSphereGrid](grids/cubed_sphere.md) | Cubed-sphere via gnomonic projection, 6 faces | `IsSemiGrid`, `MultiPatch` | Uniform quads |
+| [ReducedGaussianGrid](grids/reduced_gaussian.md) | Gaussian latitude bands, reduced longitude count | `IsSemiGrid` | Uniform quads |
+| [HEALPixGrid](grids/healpix.md) | Hierarchical equal-area iso-latitude pixels | `IsSemiGrid` | Uniform quads |
 
 ## Quick Start
 
@@ -41,7 +41,7 @@ cell_nodes(hp, 1)
 
 ## Next Steps
 
-- **[Tutorial](@ref)** — step-by-step walkthrough from grid creation to visualization
-- **[Theory](@ref)** — why geodesic cells, how grids are constructed, and the math behind the measures
-- **[Grid Types](@ref grids/latlon.md)** — detailed guide for each grid type
-- **[API Reference](@ref)** — complete function and type documentation
+- **[Tutorial](tutorial.md)** — step-by-step walkthrough from grid creation to visualization
+- **[Theory](theory.md)** — why geodesic cells, how grids are constructed, and the math behind the measures
+- **[Grid Types](grids/latlon.md)** — detailed guide for each grid type
+- **[API Reference](api.md)** — complete function and type documentation

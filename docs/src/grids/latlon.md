@@ -173,7 +173,7 @@ println("Boundary edges: ", boundary_edges(grid, :default))
 
 - **Polar singularity.** All longitude lines converge at the poles, causing cells to degenerate into extremely narrow wedges. This leads to the CFL restriction in explicit time-stepping and poor numerical conditioning near the poles.
 - **Non-uniform cell area.** Cells near the equator are much larger than cells near the poles. A $1^\circ \times 1^\circ$ cell at the equator has roughly 57 times the area of one at $89^\circ$ latitude.
-- **No quasi-uniform resolution.** If approximately equal cell areas are needed, consider [`CubedSphereGrid`](@ref), [`HEALPixGrid`](@ref), or [`ReducedGaussianGrid`](@ref) instead.
+- **No quasi-uniform resolution.** If approximately equal cell areas are needed, consider [CubedSphereGrid](cubed_sphere.md), [HEALPixGrid](healpix.md), or [ReducedGaussianGrid](reduced_gaussian.md) instead.
 
 ### Typical Use Cases
 
