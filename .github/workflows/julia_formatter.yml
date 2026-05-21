@@ -1,12 +1,42 @@
 name: JuliaFormatter
 on:
   push:
-    tags: '*'
+    branches:
+      - main
+    tags: ['*']
   pull_request:
+
+permissions:
+  contents: write
+
 jobs:
   format:
     runs-on: ubuntu-latest
     steps:
-      - uses: julia-actions/julia-format@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - uses: julia-actions/setup-julia@v3
         with:
           version: '1.10'
+      - name: Install JuliaFormatter
+        shell: julia --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.add("JuliaFormatter")
+      - name: Apply formatting
+        shell: julia --color=yes {0}
+        run: |
+          using JuliaFormatter
+          format(".")
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No formatting changes needed."
+          else
+            git add -A
+            git commit -m "style: apply JuliaFormatter [skip ci]"
+            git push
+          fi
