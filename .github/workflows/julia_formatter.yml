@@ -14,15 +14,12 @@ jobs:
       - uses: julia-actions/setup-julia@v3
         with:
           version: '1.10'
-      - name: Install JuliaFormatter
+      - name: Check formatting
         shell: julia --color=yes {0}
         run: |
           using Pkg
           Pkg.activate(temp=true)
           Pkg.add("JuliaFormatter")
-      - name: Check formatting
-        shell: julia --color=yes {0}
-        run: |
           using JuliaFormatter
           format(".")
       - name: Verify no changes
