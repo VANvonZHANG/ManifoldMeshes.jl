@@ -1,5 +1,19 @@
 # -- TopologyStyle --
+
+"""
+    TopologyStyle
+
+Abstract type for mesh topology classification.
+Dispatch on `TopologyStyle(mesh)` to get `IsGrid()`, `IsSemiGrid()`, or `IsMesh()`.
+"""
 abstract type TopologyStyle end
+
+"""
+    IsGrid
+
+Trait for fully regular structured grids (e.g., LatLonGrid).
+Neighbors follow simple Cartesian (i, j) indexing.
+"""
 struct IsGrid <: TopologyStyle end
 
 """
@@ -9,6 +23,11 @@ Trait for structured grids with specialized indexing (e.g., reduced Gaussian,
 HEALPix) where simple Cartesian neighbor lookup does not apply.
 """
 struct IsSemiGrid <: TopologyStyle end
+"""
+    IsMesh
+
+Trait for fully unstructured meshes with arbitrary connectivity.
+"""
 struct IsMesh <: TopologyStyle end
 
 TopologyStyle(::Type{IsGrid}) = IsGrid()
@@ -74,9 +93,34 @@ PatchStyle(::Type{T}) where {T} = NoPatch()
 PatchStyle(m::T) where {T} = PatchStyle(T)
 
 # -- AbstractLocation --
+
+"""
+    AbstractLocation
+
+Abstract type for staggered-grid location tags.
+Used to indicate where data lives relative to the mesh: nodes, cell centers, or edge midpoints.
+"""
 abstract type AbstractLocation end
+
+"""
+    NodeLoc
+
+Location tag: data lives at mesh nodes (vertices).
+"""
 struct NodeLoc <: AbstractLocation end
+
+"""
+    CellLoc
+
+Location tag: data lives at cell centers.
+"""
 struct CellLoc <: AbstractLocation end
+
+"""
+    EdgeLoc
+
+Location tag: data lives at edge midpoints.
+"""
 struct EdgeLoc <: AbstractLocation end
 
 # -- MixedCellTopology: stack-allocated variable-length cell topology --

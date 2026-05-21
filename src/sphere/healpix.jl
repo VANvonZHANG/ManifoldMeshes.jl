@@ -3,6 +3,13 @@ using StaticArrays: SMatrix
 
 # -- Struct --
 
+"""
+    HEALPixGrid{M<:ManifoldsBase.AbstractManifold}
+
+Hierarchical Equal Area iso-Latitude Pixelization grid.
+Cells are `IsUniform{4}` quads with `IsSemiGrid` topology.
+All cells have equal area; resolution is controlled by `nside` (Nside×Nside×12 cells total).
+"""
 struct HEALPixGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     manifold::M
     nside::Int

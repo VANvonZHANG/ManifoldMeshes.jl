@@ -15,6 +15,12 @@ abstract type AbstractDualMesh{M} <: AbstractManifoldMesh{M} end
 
 # -- Default no-dual implementations --
 
+"""
+    has_dual(g::AbstractManifoldMesh)
+
+Return whether the mesh has a computed dual mesh.
+Defaults to `false`; returns `true` after `dual(g)` is called.
+"""
 has_dual(g::AbstractManifoldMesh) = false
 
 # Mesh types that support duals must override these.

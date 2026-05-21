@@ -1,5 +1,12 @@
 using Manifolds: Sphere
 
+"""
+    LatLonGrid{M<:ManifoldsBase.AbstractManifold}
+
+Structured latitude-longitude grid on the sphere.
+Cells are uniform quads with `IsGrid` topology.
+Polar cells may be degenerate (poles are nodes, not cells).
+"""
 struct LatLonGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     manifold::M
     lat_edges::Vector{Float64}

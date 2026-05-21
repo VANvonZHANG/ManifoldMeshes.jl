@@ -1,5 +1,12 @@
 using StaticArrays: SMatrix
 
+"""
+    CubedSphereGrid{M<:ManifoldsBase.AbstractManifold}
+
+Cubed-sphere grid via gnomonic projection with 6 faces.
+Cells are uniform quads with `IsSemiGrid` topology and `MultiPatch` patch style.
+Nodes are merged across face boundaries for global connectivity.
+"""
 struct CubedSphereGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     manifold::M
     n::Int

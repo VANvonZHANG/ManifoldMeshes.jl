@@ -50,6 +50,13 @@ end
 
 # -- Struct --
 
+"""
+    ReducedGaussianGrid{M<:ManifoldsBase.AbstractManifold}
+
+Reduced Gaussian grid with Gaussian latitude bands and reduced longitude counts.
+Cells are `IsUniform{4}` quads with `IsSemiGrid` topology.
+Longitude count per band decreases toward the poles for near-equal cell areas.
+"""
 struct ReducedGaussianGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     manifold::M
     nlat::Int
