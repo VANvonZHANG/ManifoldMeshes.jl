@@ -228,7 +228,8 @@ Returns `perm` where `perm[nested_id] = ring_id`.
 
 Uses the standard HEALPix nested-to-ring conversion to compute the mapping.
 """
-function _ring_to_nested_permutation(nside::Int, ring_centers_flat::Vector{SVector{3, Float64}})
+function _ring_to_nested_permutation(nside::Int, ring_centers_flat::Vector{SVector{
+        3, Float64}})
     n_cells = 12 * nside * nside
     perm = Vector{Int}(undef, n_cells)
     used = falses(n_cells)
@@ -494,7 +495,7 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
         cn = _cell_nodes[cell_id]
         cell_edge_ids = Int[]
         for (a, b) in ((cn[1], cn[2]), (cn[2], cn[3]),
-                        (cn[3], cn[4]), (cn[4], cn[1]))
+            (cn[3], cn[4]), (cn[4], cn[1]))
             key = a < b ? (a, b) : (b, a)
             edge_id = get!(edge_map, key) do
                 length(edge_map) + 1
@@ -561,7 +562,9 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
         _cell_cells_perm = Vector{NTuple{4, Int}}(undef, n_cells)
         for i in 1:n_cells
             old_neighbors = _cell_cells[perm[i]]
-            new_neighbors = ntuple(j -> old_neighbors[j] == 0 ? 0 : inv_perm[old_neighbors[j]], 4)
+            new_neighbors = ntuple(
+                j -> old_neighbors[j] == 0 ? 0 :
+                     inv_perm[old_neighbors[j]], 4)
             _cell_cells_perm[i] = new_neighbors
         end
         _cell_cells = _cell_cells_perm

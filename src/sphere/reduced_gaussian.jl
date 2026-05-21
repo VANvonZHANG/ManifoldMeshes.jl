@@ -205,7 +205,7 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
         cn = _cell_nodes[cell_id]
         cell_edge_ids = Int[]
         for (a, b) in ((cn[1], cn[2]), (cn[2], cn[3]),
-                        (cn[3], cn[4]), (cn[4], cn[1]))
+            (cn[3], cn[4]), (cn[4], cn[1]))
             key = a < b ? (a, b) : (b, a)
             edge_id = get!(edge_map, key) do
                 length(edge_map) + 1

@@ -6,16 +6,11 @@ on:
     tags: ['*']
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
   format:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
       - uses: julia-actions/setup-julia@v3
         with:
           version: '1.10'
@@ -24,19 +19,17 @@ jobs:
         run: |
           using Pkg
           Pkg.add("JuliaFormatter")
-      - name: Apply formatting
+      - name: Check formatting
         shell: julia --color=yes {0}
         run: |
           using JuliaFormatter
           format(".")
-      - name: Commit changes
+      - name: Verify no changes
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           if git diff --quiet; then
-            echo "No formatting changes needed."
+            echo "Formatting OK."
           else
-            git add -A
-            git commit -m "style: apply JuliaFormatter [skip ci]"
-            git push
+            echo "ERROR: Code is not formatted. Run 'julia -e '"'"'using JuliaFormatter; format(\".\")'"'"' locally and commit the changes."
+            git diff --stat
+            exit 1
           fi

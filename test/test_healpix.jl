@@ -90,8 +90,10 @@ end
         total_nested = sum(cell_volume(g_nested, i) for i in 1:num_cells(g_nested))
         @test total_ring ≈ total_nested rtol = 1e-12
 
-        cents_ring = Set(round.(cell_centroid(g_ring, i), digits = 10) for i in 1:num_cells(g_ring))
-        cents_nested = Set(round.(cell_centroid(g_nested, i), digits = 10) for i in 1:num_cells(g_nested))
+        cents_ring = Set(round.(cell_centroid(g_ring, i), digits = 10)
+        for i in 1:num_cells(g_ring))
+        cents_nested = Set(round.(cell_centroid(g_nested, i), digits = 10)
+        for i in 1:num_cells(g_nested))
         @test cents_ring == cents_nested
 
         vols_ring = sort([cell_volume(g_ring, i) for i in 1:num_cells(g_ring)])
@@ -105,7 +107,8 @@ end
     g_nested = HEALPixGrid(nside = 2, ordering = :nested)
 
     ring_zeros = count(n == 0 for i in 1:num_cells(g_ring) for n in cell_cells(g_ring, i))
-    nested_zeros = count(n == 0 for i in 1:num_cells(g_nested) for n in cell_cells(g_nested, i))
+    nested_zeros = count(n == 0 for i in 1:num_cells(g_nested)
+    for n in cell_cells(g_nested, i))
     @test ring_zeros == nested_zeros
 
     function count_asymmetric(g)
