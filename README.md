@@ -5,15 +5,24 @@
 [![Build Status](https://github.com/VANvonZHANG/ManifoldMeshes.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/VANvonZHANG/ManifoldMeshes.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/VANvonZHANG/ManifoldMeshes.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/VANvonZHANG/ManifoldMeshes.jl)
 
-Mesh infrastructure for scientific computing on manifolds. Currently provides latitude-longitude grids on the unit sphere (S²).
+Mesh infrastructure for scientific computing on Riemannian manifolds. Built on [Manifolds.jl](https://github.com/JuliaManifolds/Manifolds.jl) for all differential geometry — this library never re-implements a geodesic.
 
 ## Design Philosophy
 
 **Let geometry belong to manifolds, topology belong to meshes.**
 
-- All continuous mathematics (geodesics, distances, projections) is delegated to [Manifolds.jl](https://github.com/JuliaManifolds/Manifolds.jl)
-- This library defines discrete connectivity (cells, nodes, edges) and computes geometric measures (cell volume, edge normals) from those connections
+- All continuous mathematics (geodesics, distances, projections) is delegated to Manifolds.jl
+- This library defines discrete connectivity (cells, nodes, edges) and computes geometric measures from those connections
 - Cell boundaries are geodesic arcs (great circles), not coordinate lines
+
+## Grid Types
+
+| Type | Description | Cells | Traits |
+|------|-------------|-------|--------|
+| `LatLonGrid` | Structured latitude-longitude grid | Uniform quads | `IsGrid` |
+| `CubedSphereGrid` | Cubed-sphere via gnomonic projection | Uniform quads, 6 faces | `IsSemiGrid`, `MultiPatch` |
+| `ReducedGaussianGrid` | Gaussian latitude bands with reduced longitude count | Uniform quads | `IsSemiGrid` |
+| `HEALPixGrid` | Hierarchical Equal Area iso-Latitude Pixelization | Uniform quads | `IsSemiGrid` |
 
 ## Installation
 
@@ -26,39 +35,54 @@ Mesh infrastructure for scientific computing on manifolds. Currently provides la
 ```julia
 using ManifoldMeshes
 
-# Create a 5×10 latitude-longitude grid on the unit sphere
+# LatLonGrid: 5×10 cells on the unit sphere
 grid = LatLonGrid(lat_edges=range(-90, 90; length=6), lon_edges=range(0, 360; length=11))
-
-# Global information
 num_cells(grid)   # 50
-num_nodes(grid)   # 66
-num_edges(grid)   # 120
 
-# Query a cell (1-indexed, ilat × nlon + ilon)
+# CubedSphereGrid: 4×4 cells per face (96 total)
+cs = CubedSphereGrid(n=4)
+
+# ReducedGaussianGrid: T42 Gaussian latitudes
+rg = ReducedGaussianGrid(nlat=42)
+
+# HEALPixGrid: Nside=4 (192 cells)
+hp = HEALPixGrid(nside=4)
+
+# Query a cell
 cell_id = 1
-cell_volume(grid, cell_id)       # spherical area of the cell
-cell_centroid(grid, cell_id)     # centroid as SVector{3,Float64}
-cell_nodes(grid, cell_id)        # (1, 2, 13, 12)
-cell_cells(grid, cell_id)        # neighboring cell IDs (periodic in longitude)
-
-# Node coordinates
-node_coordinates(grid, 1)        # South pole SVector{3,Float64}
-
-# Edge geometry
-edge_id = 1
-edge_length(grid, edge_id)       # great-circle arc length
-edge_midpoint(grid, edge_id)     # midpoint on sphere
+cell_volume(grid, cell_id)       # spherical area
+cell_centroid(grid, cell_id)     # SVector{3,Float64}
+cell_nodes(grid, cell_id)        # node IDs bounding the cell
+cell_cells(grid, cell_id)        # neighboring cell IDs
 ```
 
-## Current Features
+## Interface
 
-- `LatLonGrid` on `Sphere(2)` with configurable resolution
-- Pre-computed cell volumes (spherical triangle decomposition via l'Huilier's formula)
-- Pre-computed node positions and cell centroids (3D Cartesian)
-- Topological connectivity: cell-cell, cell-node, node-cell, cell-edges
-- Edge operations: length, midpoint, outward normal (tangent-space projected)
-- Periodic longitude boundary (seamless wrapping)
-- Polar collapse handling (degenerate edges/normals at poles)
+All grid types implement the `AbstractManifoldMesh` interface:
+
+**Properties:** `manifold`, `num_cells`, `num_nodes`, `num_edges`
+
+**Geometry:** `node_coordinates`, `cell_volume`, `cell_centroid`, `edge_length`, `edge_midpoint`, `edge_outward_normal`
+
+**Topology:** `cell_nodes`, `cell_cells`, `node_cells`, `cell_edges`
+
+**Boundary:** `boundary_nodes`, `boundary_edges` (empty for full-sphere grids)
+
+**Dual mesh:** `dual(g)`, `has_dual(g)` — lazy construction
+
+## Visualization
+
+```julia
+using CairoMakie  # or GLMakie for interactive 3D
+fig = plot_mesh(grid; view=Symbol("3d"))
+save("mesh.png", fig)
+```
+
+## Testing
+
+```bash
+julia --project=. -e 'using Pkg; Pkg.test()'
+```
 
 ## License
 
