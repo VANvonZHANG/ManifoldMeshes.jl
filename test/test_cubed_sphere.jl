@@ -59,7 +59,7 @@ end
 
 @testset "CubedSphereGrid rotation" begin
     # 90-degree rotation around Z axis
-    rot = SMatrix{3,3}(0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+    rot = SMatrix{3, 3}(0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
     g = CubedSphereGrid(n = 2, rotation = rot)
 
     # A known point should be rotated
@@ -86,7 +86,7 @@ end
     g = CubedSphereGrid(n = 2)
 
     nodes = cell_nodes(g, 1)
-    @test nodes isa NTuple{4,Int}
+    @test nodes isa NTuple{4, Int}
 
     # Spot-check that referenced nodes are on sphere
     for cid in [1, num_cells(g) ÷ 2, num_cells(g)]
@@ -166,7 +166,7 @@ end
 
 @testset "CubedSphereGrid rotation effect" begin
     g0 = CubedSphereGrid(n = 2)
-    rot = SMatrix{3,3}(0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+    rot = SMatrix{3, 3}(0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
     g = CubedSphereGrid(n = 2, rotation = rot)
 
     p0 = node_coordinates(g0, 1)

@@ -20,10 +20,10 @@ makedocs(;
             "LatLonGrid" => "grids/latlon.md",
             "CubedSphereGrid" => "grids/cubed_sphere.md",
             "ReducedGaussianGrid" => "grids/reduced_gaussian.md",
-            "HEALPixGrid" => "grids/healpix.md",
+            "HEALPixGrid" => "grids/healpix.md"
         ],
         "Visualization" => "visualization.md",
-        "API Reference" => "api.md",
+        "API Reference" => "api.md"
     ]
 )
 

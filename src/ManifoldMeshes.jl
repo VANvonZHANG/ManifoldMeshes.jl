@@ -12,10 +12,12 @@ include("interface.jl")
 include("dual.jl")
 
 # Export types and functions
-export TopologyStyle, IsGrid, IsSemiGrid, IsMesh, AbstractLocation, NodeLoc, CellLoc, EdgeLoc
+export TopologyStyle, IsGrid, IsSemiGrid, IsMesh, AbstractLocation, NodeLoc, CellLoc,
+       EdgeLoc
 export CellTypeStyle, IsUniform, IsMixed
 export PatchStyle, NoPatch, MultiPatch
-export AbstractManifoldMesh, AbstractDualMesh, LatLonGrid, CubedSphereGrid, ReducedGaussianGrid, HEALPixGrid, MixedCellTopology
+export AbstractManifoldMesh, AbstractDualMesh, LatLonGrid, CubedSphereGrid,
+       ReducedGaussianGrid, HEALPixGrid, MixedCellTopology
 export manifold, num_cells, num_nodes, num_edges
 export node_coordinates, cell_volume, cell_centroid
 export cell_nodes, cell_cells, node_cells, cell_edges
