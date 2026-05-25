@@ -13,6 +13,7 @@ permissions:
   contents: write
   issues: read
   pull-requests: read
+  actions: read
 jobs:
   TagBot:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
@@ -22,6 +23,7 @@ jobs:
       - uses: JuliaRegistries/TagBot@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ssh: ${{ secrets.DOCUMENTER_KEY }}
       - name: Prepend CHANGELOG to release notes
         run: |
           sleep 5

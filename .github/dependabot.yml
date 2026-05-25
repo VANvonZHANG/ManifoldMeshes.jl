@@ -1,22 +1,23 @@
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     groups:
       github-actions:
         patterns:
           - "*"
+    open-pull-requests-limit: 3
   - package-ecosystem: "julia"
     directories:
       - "/"
       - "/docs"
       - "/test"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     groups:
       julia-dependencies:
         patterns:
           - "*"
+    open-pull-requests-limit: 3
