@@ -104,7 +104,7 @@ function plot_mesh_filled(g::AbstractManifoldMesh;
             :lightblue
         else
             # Per-vertex coloring: each cell's K+1 vertices share the same color
-            color_arr = typeof(color_by(1))[]
+            color_arr = Any[]
             for cid in 1:num_cells(g)
                 ns = cell_nodes(g, cid)
                 K = length(ns)

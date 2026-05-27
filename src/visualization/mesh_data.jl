@@ -1,3 +1,7 @@
+using StaticArrays: SVector
+using LinearAlgebra: dot, norm
+using GeometryBasics: Point3f
+
 """
     slerp(p1::SVector{3,Float64}, p2::SVector{3,Float64}, n::Int) -> Vector{Point3f}
 
@@ -45,7 +49,8 @@ end
 
 Return discretized great-circle arcs for each unique undirected edge,
 as a vector of `Point3f` arrays. Edges are derived from `cell_nodes`
-boundary order, so no `cell_edges` ordering is assumed.
+boundary order, so no `cell_edges` ordering is assumed.  For manifold
+meshes the number of unique undirected edges equals `num_edges(g)`.
 Degenerate edges (coincident endpoints) return a single-point segment.
 """
 function edge_segments(g::AbstractManifoldMesh; n_arc_points::Int = 20)
@@ -118,7 +123,8 @@ function cell_triangles(g::AbstractManifoldMesh)
         # Centroid projected onto sphere surface
         raw_c = SVector{3, Float64}(cell_centroid(g, cid))
         c_norm = norm(raw_c)
-        centroid = c_norm > 0 ? Point3f(Float32.(raw_c ./ c_norm .* R)) : Point3f(Float32.(raw_c))
+        centroid = c_norm > 0 ? Point3f(Float32.(raw_c ./ c_norm .* R)) :
+                   Point3f(Float32.(raw_c))
         push!(vertices, centroid)
 
         # K boundary nodes
@@ -139,6 +145,12 @@ function cell_triangles(g::AbstractManifoldMesh)
     return vertices, faces
 end
 
+"""
+    _get_radius(g::AbstractManifoldMesh)
+
+Return the sphere radius, assuming all nodes lie on a sphere centred at
+the origin.  Uses node 1 as the representative sample.
+"""
 function _get_radius(g::AbstractManifoldMesh)
     c = node_coordinates(g, 1)
     return sqrt(sum(c .^ 2))

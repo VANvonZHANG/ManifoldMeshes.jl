@@ -15,8 +15,8 @@ using LinearAlgebra: norm
 # ── Tunable constants ──────────────────────────────────────────────────────────
 
 const OUTPUT_PATH = joinpath(@__DIR__, "grids_visualization.png")
-const FIG_SIZE    = (900, 1100)    # (width, height) in pixels
-const N_ARC       = 30             # edge discretization points
+const FIG_SIZE = (900, 1100)    # (width, height) in pixels
+const N_ARC = 30             # edge discretization points
 
 # ── Grid definitions (coarse / fine) ─────────────────────────────────────────
 
@@ -25,39 +25,39 @@ const N_ARC       = 30             # edge discretization points
 #   Fine:   24 lat bands × 32 lon bands = 768 cells
 latlon_coarse = LatLonGrid(
     lat_edges = collect(range(-90.0, 90.0, length = 7)),
-    lon_edges = collect(range(0.0, 360.0, length = 9)),
+    lon_edges = collect(range(0.0, 360.0, length = 9))
 )
 latlon_fine = LatLonGrid(
     lat_edges = collect(range(-90.0, 90.0, length = 25)),
-    lon_edges = collect(range(0.0, 360.0, length = 33)),
+    lon_edges = collect(range(0.0, 360.0, length = 33))
 )
 
 # CubedSphere: 6-face gnomonic projection
 #   Coarse: n=4  → 6 × 4²  = 96 cells
 #   Fine:   n=16 → 6 × 16² = 1536 cells
 cubed_coarse = CubedSphereGrid(n = 4)
-cubed_fine   = CubedSphereGrid(n = 16)
+cubed_fine = CubedSphereGrid(n = 16)
 
 # ReducedGaussian: octahedral Gaussian lat bands
 #   Coarse: nlat=8  → ~96 cells
 #   Fine:   nlat=32 → ~1536 cells
 gauss_coarse = ReducedGaussianGrid(nlat = 8)
-gauss_fine   = ReducedGaussianGrid(nlat = 32)
+gauss_fine = ReducedGaussianGrid(nlat = 32)
 
 # HEALPix: hierarchical equal-area pixels
 #   Coarse: nside=2 → 12 × 2²  = 48 cells
 #   Fine:   nside=8 → 12 × 8²  = 768 cells
 healpix_coarse = HEALPixGrid(nside = 2)
-healpix_fine   = HEALPixGrid(nside = 8)
+healpix_fine = HEALPixGrid(nside = 8)
 
 # ── Bundle for iteration ──────────────────────────────────────────────────────
 
 # (name, coarse_grid, fine_grid, color)
 grids = [
-    ("LatLon",          latlon_coarse,  latlon_fine,  :steelblue3),
-    ("CubedSphere",     cubed_coarse,   cubed_fine,   :seagreen),
-    ("ReducedGaussian", gauss_coarse,   gauss_fine,   :mediumpurple3),
-    ("HEALPix",         healpix_coarse, healpix_fine, :chocolate3),
+    ("LatLon", latlon_coarse, latlon_fine, :steelblue3),
+    ("CubedSphere", cubed_coarse, cubed_fine, :seagreen),
+    ("ReducedGaussian", gauss_coarse, gauss_fine, :mediumpurple3),
+    ("HEALPix", healpix_coarse, healpix_fine, :chocolate3)
 ]
 
 # ── Helper: draw mesh wireframe on an existing LScene ─────────────────────────
@@ -66,11 +66,11 @@ function draw_mesh!(ax, g; edge_color = :steelblue, show_edges::Bool = true)
     # Semi-transparent sphere background
     n = 64
     theta = LinRange(0, pi, n)
-    phi   = LinRange(-pi, pi, 2n)
+    phi = LinRange(-pi, pi, 2n)
     R = norm(node_coordinates(g, 1))
     xe = [R * cos(phiv) * sin(thetav) for thetav in theta, phiv in phi]
     ye = [R * sin(phiv) * sin(thetav) for thetav in theta, phiv in phi]
-    ze = [R * cos(thetav)              for thetav in theta, phiv in phi]
+    ze = [R * cos(thetav) for thetav in theta, phiv in phi]
     colors = fill(RGBAf(0.85, 0.85, 0.9, 0.25), size(xe))
     surface!(ax, xe, ye, ze;
         color = colors, transparency = true, shading = NoShading)
