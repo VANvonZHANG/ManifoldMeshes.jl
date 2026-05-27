@@ -1,3 +1,7 @@
+using StaticArrays: SVector
+using LinearAlgebra: dot, norm
+using GeometryBasics: Point3f
+
 """
     slerp(p1::SVector{3,Float64}, p2::SVector{3,Float64}, n::Int) -> Vector{Point3f}
 
@@ -41,55 +45,30 @@ function node_points(g::AbstractManifoldMesh)
 end
 
 """
-    _build_edge_endpoint_map(g::AbstractManifoldMesh) -> Dict{Int, Tuple{Int,Int}}
-
-Reconstruct edge-to-endpoint-node mapping from the public cell interface.
-For each cell, edges are ordered (south, north, west, east) and nodes are
-ordered (SW, SE, NE, NW), giving:
-  - south edge: SW -> SE  (nodes 1-2)
-  - north edge: NW -> NE  (nodes 4-3)
-  - west edge:  SW -> NW  (nodes 1-4)
-  - east edge:  SE -> NE  (nodes 2-3)
-"""
-function _build_edge_endpoint_map(g::AbstractManifoldMesh)
-    # node_pair_for_edge[edge_id] = (node_a, node_b)
-    node_pair_for_edge = Dict{Int, Tuple{Int, Int}}()
-    for cid in 1:num_cells(g)
-        ns = cell_nodes(g, cid)
-        es = cell_edges(g, cid)
-        # south edge: SW(1) -> SE(2)
-        _register_edge_pair!(node_pair_for_edge, es[1], ns[1], ns[2])
-        # north edge: NW(4) -> NE(3)
-        _register_edge_pair!(node_pair_for_edge, es[2], ns[4], ns[3])
-        # west edge: SW(1) -> NW(4)
-        _register_edge_pair!(node_pair_for_edge, es[3], ns[1], ns[4])
-        # east edge: SE(2) -> NE(3)
-        _register_edge_pair!(node_pair_for_edge, es[4], ns[2], ns[3])
-    end
-    return node_pair_for_edge
-end
-
-function _register_edge_pair!(
-        d::Dict{Int, Tuple{Int, Int}}, edge_id::Int, a::Int, b::Int)
-    if !haskey(d, edge_id)
-        d[edge_id] = (a, b)
-    end
-end
-
-"""
     edge_segments(g::AbstractManifoldMesh; n_arc_points::Int=20) -> Vector{Vector{Point3f}}
 
-Return discretized great-circle arcs for each edge, as a vector of `Point3f` arrays.
+Return discretized great-circle arcs for each unique undirected edge,
+as a vector of `Point3f` arrays. Edges are derived from `cell_nodes`
+boundary order, so no `cell_edges` ordering is assumed.  For manifold
+meshes the number of unique undirected edges equals `num_edges(g)`.
 Degenerate edges (coincident endpoints) return a single-point segment.
 """
 function edge_segments(g::AbstractManifoldMesh; n_arc_points::Int = 20)
-    edge_map = _build_edge_endpoint_map(g)
-    segments = Vector{Vector{Point3f}}(undef, num_edges(g))
-    for eid in 1:num_edges(g)
-        n1_id, n2_id = edge_map[eid]
-        p1 = node_coordinates(g, n1_id)
-        p2 = node_coordinates(g, n2_id)
-        segments[eid] = slerp(p1, p2, n_arc_points)
+    seen = Set{Tuple{Int, Int}}()
+    segments = Vector{Vector{Point3f}}()
+    for cid in 1:num_cells(g)
+        ns = cell_nodes(g, cid)
+        K = length(ns)
+        for i in 1:K
+            n1, n2 = ns[i], ns[mod1(i + 1, K)]
+            key = n1 < n2 ? (n1, n2) : (n2, n1)
+            if key ∉ seen
+                push!(seen, key)
+                p1 = node_coordinates(g, n1)
+                p2 = node_coordinates(g, n2)
+                push!(segments, slerp(p1, p2, n_arc_points))
+            end
+        end
     end
     return segments
 end
@@ -99,48 +78,80 @@ end
 
 Return closed cell boundaries as discretized great-circle polygons.
 Each polygon is a vector of `Point3f` where the first point equals the last.
-Edges are ordered: south, east, north (reversed), west (reversed).
+Edges are derived from consecutive `cell_nodes` in boundary order, so no
+`cell_edges` ordering is assumed.
 """
 function cell_polygons(g::AbstractManifoldMesh; n_arc_points::Int = 20)
-    edge_map = _build_edge_endpoint_map(g)
     polygons = Vector{Vector{Point3f}}(undef, num_cells(g))
-
     for cid in 1:num_cells(g)
         ns = cell_nodes(g, cid)
-        es = cell_edges(g, cid)
-
-        # Build arcs for each edge
-        south_arc = slerp(node_coordinates(g, ns[1]), node_coordinates(g, ns[2]), n_arc_points)
-        east_arc = slerp(node_coordinates(g, ns[2]), node_coordinates(g, ns[3]), n_arc_points)
-        north_arc = slerp(node_coordinates(g, ns[4]), node_coordinates(g, ns[3]), n_arc_points)
-        west_arc = slerp(node_coordinates(g, ns[1]), node_coordinates(g, ns[4]), n_arc_points)
-
-        # Concatenate: south + east + north(reversed) + west(reversed)
-        # Skip first point of each subsequent arc to avoid duplication at corners
-        total_len = length(south_arc) + (length(east_arc) - 1) +
-                    (length(north_arc) - 1) + (length(west_arc) - 1)
-        polygon = Vector{Point3f}(undef, total_len)
-
-        idx = 1
-        for p in south_arc
-            polygon[idx] = p
-            idx += 1
+        K = length(ns)
+        polygon = Point3f[]
+        for i in 1:K
+            n1, n2 = ns[i], ns[mod1(i + 1, K)]
+            arc = slerp(node_coordinates(g, n1), node_coordinates(g, n2), n_arc_points)
+            if i == 1
+                append!(polygon, arc)
+            else
+                append!(polygon, arc[2:end])
+            end
         end
-        for i in 2:length(east_arc)
-            polygon[idx] = east_arc[i]
-            idx += 1
-        end
-        for p in reverse(north_arc)[2:end]
-            polygon[idx] = p
-            idx += 1
-        end
-        for p in reverse(west_arc)[2:end]
-            polygon[idx] = p
-            idx += 1
-        end
-
         polygons[cid] = polygon
     end
-
     return polygons
+end
+
+"""
+    cell_triangles(g::AbstractManifoldMesh) -> (Vector{Point3f}, Vector{Int})
+
+Return triangle-mesh data for all cells as a shared-vertex list.
+Each cell with K boundary nodes is decomposed into K triangles fanning
+from the cell centroid (projected onto the sphere surface) to consecutive
+boundary-node pairs.  The returned `(vertices, faces)` can be passed
+ directly to `GeometryBasics.Mesh`.
+"""
+function cell_triangles(g::AbstractManifoldMesh)
+    vertices = Point3f[]
+    faces = Int[]
+    offset = 0
+    R = _get_radius(g)
+    for cid in 1:num_cells(g)
+        ns = cell_nodes(g, cid)
+        K = length(ns)
+        K < 3 && continue
+
+        # Centroid projected onto sphere surface
+        raw_c = SVector{3, Float64}(cell_centroid(g, cid))
+        c_norm = norm(raw_c)
+        centroid = c_norm > 0 ? Point3f(Float32.(raw_c ./ c_norm .* R)) :
+                   Point3f(Float32.(raw_c))
+        push!(vertices, centroid)
+
+        # K boundary nodes
+        for n in ns
+            push!(vertices, Point3f(Float32.(node_coordinates(g, n))))
+        end
+
+        # K triangles: centroid(1) + boundary(i) + boundary(i+1)
+        for i in 1:K
+            v1 = offset + 1
+            v2 = offset + 1 + i
+            v3 = offset + 1 + mod1(i + 1, K)
+            push!(faces, v1, v2, v3)
+        end
+
+        offset += K + 1
+    end
+    return vertices, faces
+end
+
+"""
+    _get_radius(g::AbstractManifoldMesh)
+
+Return the sphere radius, assuming all nodes lie on a sphere centred at
+the origin.  Uses node 1 as the representative sample.
+"""
+function _get_radius(g::AbstractManifoldMesh)
+    c = node_coordinates(g, 1)
+    return sqrt(sum(c .^ 2))
 end
