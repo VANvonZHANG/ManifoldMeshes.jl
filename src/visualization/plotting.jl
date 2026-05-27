@@ -98,25 +98,36 @@ function plot_mesh_filled(g::AbstractManifoldMesh;
 
     _add_sphere_background!(ax, M; R = _get_radius(g))
 
-    polys = cell_polygons(g; n_arc_points)
-    for (i, poly) in enumerate(polys)
-        if length(poly) >= 3
-            center = poly[1]
-            color = color_by === nothing ? :lightblue : color_by(i)
-            for k in 2:(length(poly) - 1)
-                M.mesh!(ax, [center, poly[k], poly[k + 1]];
-                    color = color, transparency = true, shading = M.NoShading, kwargs...)
+    verts, faces = cell_triangles(g)
+    if !isempty(faces)
+        colors = if color_by === nothing
+            :lightblue
+        else
+            # Per-vertex coloring: each cell's K+1 vertices share the same color
+            color_arr = typeof(color_by(1))[]
+            for cid in 1:num_cells(g)
+                ns = cell_nodes(g, cid)
+                K = length(ns)
+                K < 3 && continue
+                c = color_by(cid)
+                append!(color_arr, fill(c, K + 1))
             end
+            color_arr
         end
+        M.mesh!(ax, verts, faces; color = colors, shading = M.NoShading, kwargs...)
     end
 
     if show_edges
         segs = edge_segments(g; n_arc_points)
+        pts = Point3f[]
+        nan_pt = Point3f(NaN32, NaN32, NaN32)
         for seg in segs
-            if length(seg) > 1
-                M.lines!(ax, seg; color = :steelblue, linewidth = 0.5, kwargs...)
+            if length(seg) >= 2
+                append!(pts, seg)
+                push!(pts, nan_pt)
             end
         end
+        isempty(pts) || M.lines!(ax, pts; color = :steelblue, linewidth = 0.5, kwargs...)
     end
 
     return fig
@@ -126,11 +137,6 @@ end
 
 function _require_makie()
     return CairoMakie
-end
-
-function _get_radius(g::AbstractManifoldMesh)
-    c = node_coordinates(g, 1)
-    return sqrt(sum(c .^ 2))
 end
 
 function _add_sphere_background!(ax, M; R = 1.0)
