@@ -95,3 +95,51 @@ function cell_polygons(g::AbstractManifoldMesh; n_arc_points::Int = 20)
     end
     return polygons
 end
+
+"""
+    cell_triangles(g::AbstractManifoldMesh) -> (Vector{Point3f}, Vector{Int})
+
+Return triangle-mesh data for all cells as a shared-vertex list.
+Each cell with K boundary nodes is decomposed into K triangles fanning
+from the cell centroid (projected onto the sphere surface) to consecutive
+boundary-node pairs.  The returned `(vertices, faces)` can be passed
+ directly to `GeometryBasics.Mesh`.
+"""
+function cell_triangles(g::AbstractManifoldMesh)
+    vertices = Point3f[]
+    faces = Int[]
+    offset = 0
+    R = _get_radius(g)
+    for cid in 1:num_cells(g)
+        ns = cell_nodes(g, cid)
+        K = length(ns)
+        K < 3 && continue
+
+        # Centroid projected onto sphere surface
+        raw_c = SVector{3, Float64}(cell_centroid(g, cid))
+        c_norm = norm(raw_c)
+        centroid = c_norm > 0 ? Point3f(Float32.(raw_c ./ c_norm .* R)) : Point3f(Float32.(raw_c))
+        push!(vertices, centroid)
+
+        # K boundary nodes
+        for n in ns
+            push!(vertices, Point3f(Float32.(node_coordinates(g, n))))
+        end
+
+        # K triangles: centroid(1) + boundary(i) + boundary(i+1)
+        for i in 1:K
+            v1 = offset + 1
+            v2 = offset + 1 + i
+            v3 = offset + 1 + mod1(i + 1, K)
+            push!(faces, v1, v2, v3)
+        end
+
+        offset += K + 1
+    end
+    return vertices, faces
+end
+
+function _get_radius(g::AbstractManifoldMesh)
+    c = node_coordinates(g, 1)
+    return sqrt(sum(c .^ 2))
+end

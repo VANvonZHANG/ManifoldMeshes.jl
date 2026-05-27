@@ -24,7 +24,7 @@ export cell_nodes, cell_cells, node_cells, cell_edges
 export edge_length, edge_midpoint, edge_outward_normal
 export boundary_nodes, boundary_edges
 export dual, has_dual, cell_face, cell_local_2d
-export slerp, node_points, edge_segments, cell_polygons
+export slerp, node_points, edge_segments, cell_polygons, cell_triangles
 
 include("sphere/utils.jl")
 include("sphere/latlon.jl")
