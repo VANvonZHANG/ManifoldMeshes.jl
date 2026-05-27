@@ -35,11 +35,15 @@ function plot_mesh(g::AbstractManifoldMesh;
 
     if show_edges
         segs = edge_segments(g; n_arc_points)
+        pts = Point3f[]
+        nan_pt = Point3f(NaN32, NaN32, NaN32)
         for seg in segs
-            if length(seg) > 1
-                M.lines!(ax, seg; color = :steelblue, linewidth = 0.5, kwargs...)
+            if length(seg) >= 2
+                append!(pts, seg)
+                push!(pts, nan_pt)
             end
         end
+        isempty(pts) || M.lines!(ax, pts; color = :steelblue, linewidth = 0.5, kwargs...)
     end
 
     if show_nodes
