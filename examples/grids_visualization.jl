@@ -15,7 +15,7 @@ using LinearAlgebra: norm
 # ── Tunable constants ──────────────────────────────────────────────────────────
 
 const OUTPUT_PATH = joinpath(@__DIR__, "grids_visualization.png")
-const FIG_SIZE    = (1200, 1600)   # (width, height) in pixels
+const FIG_SIZE    = (900, 1100)    # (width, height) in pixels
 const N_ARC       = 30             # edge discretization points
 
 # ── Grid definitions (coarse / fine) ─────────────────────────────────────────
@@ -52,16 +52,17 @@ healpix_fine   = HEALPixGrid(nside = 8)
 
 # ── Bundle for iteration ──────────────────────────────────────────────────────
 
+# (name, coarse_grid, fine_grid, color)
 grids = [
-    ("LatLon",          latlon_coarse,  latlon_fine),
-    ("CubedSphere",     cubed_coarse,   cubed_fine),
-    ("ReducedGaussian", gauss_coarse,   gauss_fine),
-    ("HEALPix",         healpix_coarse, healpix_fine),
+    ("LatLon",          latlon_coarse,  latlon_fine,  :steelblue3),
+    ("CubedSphere",     cubed_coarse,   cubed_fine,   :seagreen),
+    ("ReducedGaussian", gauss_coarse,   gauss_fine,   :mediumpurple3),
+    ("HEALPix",         healpix_coarse, healpix_fine, :chocolate3),
 ]
 
 # ── Helper: draw mesh wireframe on an existing LScene ─────────────────────────
 
-function draw_mesh!(ax, g; show_nodes::Bool = true, show_edges::Bool = true)
+function draw_mesh!(ax, g; edge_color = :steelblue, show_edges::Bool = true)
     # Semi-transparent sphere background
     n = 64
     theta = LinRange(0, pi, n)
@@ -70,7 +71,7 @@ function draw_mesh!(ax, g; show_nodes::Bool = true, show_edges::Bool = true)
     xe = [R * cos(phiv) * sin(thetav) for thetav in theta, phiv in phi]
     ye = [R * sin(phiv) * sin(thetav) for thetav in theta, phiv in phi]
     ze = [R * cos(thetav)              for thetav in theta, phiv in phi]
-    colors = fill(RGBAf(0.9, 0.9, 0.9, 0.15), size(xe))
+    colors = fill(RGBAf(0.85, 0.85, 0.9, 0.25), size(xe))
     surface!(ax, xe, ye, ze;
         color = colors, transparency = true, shading = NoShading)
 
@@ -84,12 +85,7 @@ function draw_mesh!(ax, g; show_nodes::Bool = true, show_edges::Bool = true)
                 push!(pts, nan_pt)
             end
         end
-        isempty(pts) || lines!(ax, pts; color = :steelblue, linewidth = 0.5)
-    end
-
-    if show_nodes
-        pts = node_points(g)
-        meshscatter!(ax, pts; color = :orangered, markersize = 0.03)
+        isempty(pts) || lines!(ax, pts; color = edge_color, linewidth = 0.8)
     end
 
     return nothing
@@ -99,19 +95,23 @@ end
 
 fig = Figure(size = FIG_SIZE)
 
-for (row, (name, coarse, fine)) in enumerate(grids)
+for (row, (name, coarse, fine, color)) in enumerate(grids)
     # Coarse resolution (left column)
     Label(fig[row, 1, Top()], "$name (coarse, $(num_cells(coarse)) cells)";
-        fontsize = 14, padding = (0, 0, 10, 0))
+        fontsize = 12, font = :bold, padding = (0, 0, 5, 0))
     ax1 = LScene(fig[row, 1]; show_axis = false)
-    draw_mesh!(ax1, coarse)
+    draw_mesh!(ax1, coarse; edge_color = color)
 
     # Fine resolution (right column)
     Label(fig[row, 2, Top()], "$name (fine, $(num_cells(fine)) cells)";
-        fontsize = 14, padding = (0, 0, 10, 0))
+        fontsize = 12, font = :bold, padding = (0, 0, 5, 0))
     ax2 = LScene(fig[row, 2]; show_axis = false)
-    draw_mesh!(ax2, fine)
+    draw_mesh!(ax2, fine; edge_color = color)
 end
+
+# Tighten layout gaps
+rowgap!(fig.layout, 15)
+colgap!(fig.layout, 25)
 
 # ── Save ──────────────────────────────────────────────────────────────────────
 
