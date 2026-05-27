@@ -2,7 +2,7 @@ module VisualizationPlotting
 
 using CairoMakie
 using ..ManifoldMeshes
-using ..ManifoldMeshes: node_points, edge_segments, cell_polygons
+using ..ManifoldMeshes: node_points, edge_segments, cell_polygons, _get_radius
 using GeometryBasics: Point3f
 
 """
