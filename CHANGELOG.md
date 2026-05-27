@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Generic visualization across all grid types**: `edge_segments()` and `cell_polygons()` now derive edges from `cell_nodes` boundary order, eliminating hardcoded quad-cell assumptions and working correctly for any grid topology
+- **`cell_triangles()` function**: Decomposes each cell into K triangles fanning from the sphere-projected centroid; returns shared-vertex `(vertices, faces)` suitable for `GeometryBasics.Mesh`
+- **Batched rendering**: Edge wireframes use a single NaN-separated `lines!()` call; filled meshes use a single `mesh!(verts, faces)` call with per-vertex coloring for improved performance
+- **Extended visualization tests**: Both `test_visualization_data.jl` and `test_visualization_smoke.jl` now cover all 4 grid types; restored `slerp` and `node_points` unit tests
+- **`examples/grids_visualization.jl`**: Standalone script producing a 4×2 comparison figure of all S² grid types
+
+### Fixed
+
+- Explicit imports and type stability in visualization module
+- Hardened color array type for cross-backend compatibility
+
 ## [0.3.0] - 2026-05-21
 
 ### Added
