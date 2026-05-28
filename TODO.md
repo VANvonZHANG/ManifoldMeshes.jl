@@ -1,18 +1,18 @@
 # TODO — ManifoldMeshes.jl Development Roadmap
 
-> Last updated: 2026-05-11  
-> Current version: v0.2.0  
-> Status: Core S² lat-lon grid is solid; expansion toward general manifolds and unstructured meshes is the next frontier.
+> Last updated: 2026-05-28  
+> Current version: v0.4.0  
+> Status: Four S² grid types are implemented; engineering polish (weak deps, batch queries, CSR topology) and new mesh types (unstructured, icosahedral) are the next frontiers.
 
 ---
 
 ## 1. Manifold Coverage (New Mesh Types)
 
-The library currently has **one** concrete implementation: `LatLonGrid` on S². The abstract interface is designed to support arbitrary manifolds.
+The library currently has **four** concrete S² implementations: `LatLonGrid`, `CubedSphereGrid`, `ReducedGaussianGrid`, and `HEALPixGrid`. The abstract interface is designed to support arbitrary manifolds.
 
 | Priority | Item | Description |
 |----------|------|-------------|
-| 🔴 High | **Cubed-sphere grid on S²** | Equal-area cells, avoids polar singularity of lat-lon. Essential for climate/weather codes. |
+| ✅ **Done** | ~~Cubed-sphere grid on S²~~ | Equal-area cells, avoids polar singularity. Implemented in `src/sphere/cubed_sphere.jl`. |
 | 🔴 High | **Icosahedral / hexagonal grid on S²** | Hex-pentagon dual mesh. Standard in geodesic dome / atmospheric modeling. |
 | 🟡 Medium | **Toroidal grid (T²)** | Periodic in both dimensions. Test-bed for non-spherical manifolds. |
 | 🟡 Medium | **Stereographic / projective plane grids** | Non-orientable manifold examples. |
@@ -22,12 +22,12 @@ The library currently has **one** concrete implementation: `LatLonGrid` on S². 
 
 ## 2. Topology & Mesh Types
 
-Currently only `IsGrid` (structured) is implemented. The `IsMesh` trait exists but has no concrete subtype.
+`IsGrid` (`LatLonGrid`) and `IsSemiGrid` (`CubedSphereGrid`, `ReducedGaussianGrid`, `HEALPixGrid`) are implemented. The `IsMesh` trait exists but has no concrete subtype.
 
 | Priority | Item | Description |
 |----------|------|-------------|
 | 🔴 High | **Unstructured triangular mesh on S²** | General polygon mesh (`IsMesh`). Each cell can have arbitrary node count. |
-| 🔴 High | **Dual mesh construction** | Given a primal mesh, compute the dual (nodes ↔ cells, edges ↔ edges). Critical for staggered-grid schemes. |
+| 🟡 Medium | **Concrete dual mesh implementations** | Abstract framework exists (`AbstractDualMesh`, lazy `_dual` cache). All 4 grid types have the field, but `dual(g)` is not yet implemented for any of them. Critical for staggered-grid schemes. |
 | 🟡 Medium | **Mesh refinement (quad-tree / tri-tree)** | Adaptive local refinement with hanging-node handling. |
 | 🟡 Medium | **Mesh coarsening / agglomeration** | Inverse of refinement; useful for multigrid. |
 | 🟢 Low | **Mesh I/O (VTK, NetCDF, JSON)** | Read/write mesh topology and geometry to standard formats. |
@@ -88,8 +88,8 @@ The current 15-function interface is minimal. Several common mesh operations are
 
 | Priority | Item | Description |
 |----------|------|-------------|
-| 🔴 High | **API reference with `@autodocs`** | Currently docs/src/ only has `index.md`. Add API pages for `AbstractManifoldMesh`, `LatLonGrid`, `VisualizationPlotting`, and all interface functions. |
-| 🔴 High | **Tutorial: Building a custom mesh type** | Step-by-step guide implementing `MyMesh <: AbstractManifoldMesh` for a new manifold. |
+| 🟡 Medium | **API reference with `@autodocs`** | `docs/src/api.md` exists with manual `@docs` blocks for all public symbols. Switch to `@autodocs` for automatic maintenance as the API grows. |
+| 🔴 High | **Tutorial: Building a custom mesh type** | `docs/src/tutorial.md` exists but is empty. Needs step-by-step guide implementing `MyMesh <: AbstractManifoldMesh` for a new manifold. |
 | 🟡 Medium | **Comparison with other Julia mesh libraries** | Document differences vs. `Meshes.jl`, `Gridap.jl`, `Ferrite.jl`. |
 | 🟡 Medium | **Performance best-practices guide** | When to use batch queries, how to avoid allocations in loops, memory layout tips. |
 | 🟢 Low | **Visualization cookbook** | Gallery of common plot types with copy-paste code. |
