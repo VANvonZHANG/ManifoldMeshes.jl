@@ -9,12 +9,12 @@ on:
         default: 3
   schedule:
     - cron: 0 0 * * *
+permissions:
+  contents: write
 jobs:
   TagBot:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v6
       - uses: JuliaRegistries/TagBot@v1
