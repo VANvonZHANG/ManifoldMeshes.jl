@@ -11,12 +11,11 @@ on:
     - cron: 0 0 * * *
 permissions:
   contents: write
-  issues: read
+  issues: write
   pull-requests: read
   actions: read
 jobs:
   TagBot:
-    if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
