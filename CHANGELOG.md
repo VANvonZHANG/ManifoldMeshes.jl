@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Explicit imports and type stability in visualization module
 - Hardened color array type for cross-backend compatibility
 
+### Documentation
+
+- **Visualization guide updates**: Added `cell_triangles()` API documentation with GLMakie/GeometryBasics usage example, batched rendering implementation note, and `examples/grids_visualization.jl` cross-reference
+- **Tutorial and landing page**: Added Further Exploration subsection in Stage 5 and Visualization Examples link in Next Steps
+
 ## [0.3.0] - 2026-05-21
 
 ### Added
