@@ -44,4 +44,5 @@ cell_nodes(hp, 1)
 - **[Tutorial](tutorial.md)** — step-by-step walkthrough from grid creation to visualization
 - **[Theory](theory.md)** — why geodesic cells, how grids are constructed, and the math behind the measures
 - **[Grid Types](grids/latlon.md)** — detailed guide for each grid type
+- **[Visualization Examples](visualization.md)** — wireframes, filled cells, and the `grids_visualization.jl` comparison script
 - **[API Reference](api.md)** — complete function and type documentation

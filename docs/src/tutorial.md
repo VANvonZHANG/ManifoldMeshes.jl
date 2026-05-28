@@ -292,5 +292,18 @@ You have learned to:
 4. **Switch grid types** without changing any downstream code, thanks to the unified `AbstractManifoldMesh` interface.
 5. **Visualize** wireframes and filled plots with Makie.
 
+### Further Exploration
+
+For a complete side-by-side comparison of all four grid types, run the
+example script included in the repository:
+
+```bash
+julia --project=. examples/grids_visualization.jl
+```
+
+This produces a publication-quality figure showing coarse and fine
+resolutions of each grid type, useful for choosing the right grid for
+your application.
+
 The [API Reference](api.md) documents every function in detail.
 For the mathematical background behind geodesic cell boundaries and spherical geometry, see the [Theory](theory.md) page.

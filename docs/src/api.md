@@ -104,6 +104,7 @@ slerp
 node_points
 edge_segments
 cell_polygons
+cell_triangles
 plot_mesh
 plot_mesh_filled
 ```

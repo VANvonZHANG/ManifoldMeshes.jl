@@ -73,6 +73,12 @@ fig = plot_mesh(grid; show_nodes = true, show_cell_ids = true)
 The optional `color_by` keyword lets you color cells by index, data field, or any
 criterion.
 
+!!! note "Implementation detail"
+    `plot_mesh_filled` uses batched rendering internally: a single
+    `mesh!(verts, faces)` call with per-vertex coloring, rather than
+    drawing each cell as a separate polygon. This improves performance
+    significantly for large grids (hundreds to thousands of cells).
+
 ```julia
 fig = plot_mesh_filled(grid)
 save("filled.png", fig)
@@ -166,6 +172,36 @@ end
 display(fig)
 ```
 
+### [`cell_triangles`](@ref)
+
+```julia
+verts, faces = cell_triangles(grid)
+```
+
+Returns a shared-vertex triangle mesh suitable for `GeometryBasics.Mesh`.
+Each cell is decomposed into K triangles fanning from the sphere-projected
+ centroid to consecutive boundary-node pairs, where K is the number of nodes
+bounding that cell.
+
+```julia
+verts, faces = cell_triangles(grid)
+
+# Custom rendering with per-cell coloring
+using GLMakie, GeometryBasics
+
+fig = Figure()
+ax = LScene(fig[1, 1]; show_axis = false)
+
+mesh!(ax, GeometryBasics.Mesh(verts, faces);
+    color = :lightblue, shading = NoShading)
+
+display(fig)
+```
+
+This is the primitive used internally by [`plot_mesh_filled`](@ref) for
+batched filled rendering. You can call it directly to build custom
+visualizations with per-vertex or per-face color arrays.
+
 ## Spherical Interpolation
 
 [`slerp`](@ref) (spherical linear interpolation) computes evenly spaced points along
@@ -203,3 +239,16 @@ save("mesh.svg", fig)       # SVG vector (CairoMakie only)
 
 Supported formats depend on the backend.  CairoMakie supports PNG, SVG, and PDF.
 GLMakie supports PNG and JPEG.
+
+## Example Script
+
+The repository includes a standalone example script that produces a 4×2
+comparison figure of all grid types at coarse and fine resolutions:
+
+```bash
+julia --project=. examples/grids_visualization.jl
+```
+
+This script demonstrates custom rendering with `edge_segments` and
+[`LScene`](https://docs.makie.org/stable/api/#Makie.LScene) for full
+control over layout and styling.
