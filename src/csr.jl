@@ -3,8 +3,12 @@ struct CSRMapping
     values::Vector{Int}
 
     function CSRMapping(offsets::Vector{Int}, values::Vector{Int})
-        @assert offsets[1] == 1 "offsets must start at 1"
-        @assert offsets[end] == length(values) + 1 "last offset mismatch: $(offsets[end]) != $(length(values) + 1)"
+        if offsets[1] != 1
+            throw(ArgumentError("offsets must start at 1, got $(offsets[1])"))
+        end
+        if offsets[end] != length(values) + 1
+            throw(ArgumentError("last offset mismatch: $(offsets[end]) != $(length(values) + 1)"))
+        end
         new(offsets, values)
     end
 end
@@ -37,12 +41,13 @@ function Base.getindex(csr::CSRMapping, i::Int)
     @boundscheck 1 <= i <= length(csr) || throw(BoundsError(csr, i))
     start = csr.offsets[i]
     stop = csr.offsets[i + 1] - 1
-    return @view csr.values[start:stop]
+    return copy(csr.values[start:stop])
 end
 
 # Fast fixed-size path (zero allocation, returns NTuple)
 function getindex_fixed(csr::CSRMapping, i::Int, ::Val{K}) where {K}
     @boundscheck 1 <= i <= length(csr) || throw(BoundsError(csr, i))
+    @boundscheck n_neighbors(csr, i) == K || throw(BoundsError("CSR row $i has $(n_neighbors(csr, i)) neighbors, expected $K"))
     base = csr.offsets[i] - 1
     ntuple(k -> csr.values[base + k], Val(K))
 end

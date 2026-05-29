@@ -20,6 +20,7 @@ struct CubedSphereGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     _edge_nodes::CSRMapping
     _edge_cells::CSRMapping
     _node_edges::CSRMapping
+    _node_cells::CSRMapping
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
     rotation::SMatrix{3, 3, Float64, 9}
 end
@@ -267,10 +268,25 @@ function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
         ptrs[n2] += 1
     end
 
+    # --- Derive node → cells ---
+    node_cell_counts = fill(0, n_nodes)
+    for cell_id in 1:ncells
+        for node_id in getindex_fixed(_cell_nodes, cell_id, Val(4))
+            node_cell_counts[node_id] += 1
+        end
+    end
+    _node_cells, ptrs = CSRMapping(n_nodes, node_cell_counts)
+
+    for cell_id in 1:ncells
+        for node_id in getindex_fixed(_cell_nodes, cell_id, Val(4))
+            _node_cells.values[ptrs[node_id]] = cell_id; ptrs[node_id] += 1
+        end
+    end
+
     return CubedSphereGrid(
         M, n, R, nodes, cell_volumes, cell_centroids,
         _cell_nodes, _cell_edges, _cell_cells,
-        _edge_nodes, _edge_cells, _node_edges,
+        _edge_nodes, _edge_cells, _node_edges, _node_cells,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing),
         rotation)
 end
@@ -411,13 +427,7 @@ end
 
 function node_cells(g::CubedSphereGrid, node_id::Int)
     _check_node_id(g, node_id)
-    cells = Int[]
-    for cell_id in 1:num_cells(g)
-        if node_id in cell_nodes(g, cell_id)
-            push!(cells, cell_id)
-        end
-    end
-    return cells
+    return g._node_cells[node_id]
 end
 
 # -- Edge Geometry --
