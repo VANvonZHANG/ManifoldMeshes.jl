@@ -66,10 +66,12 @@ struct ReducedGaussianGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     nodes::Vector{SVector{3, Float64}}
     cell_volumes::Vector{Float64}
     cell_centroids::Vector{SVector{3, Float64}}
-    _cell_nodes::Vector{NTuple{4, Int}}
-    _cell_edges::Vector{NTuple{4, Int}}
-    _edge_nodes::Vector{NTuple{2, Int}}
-    _cell_cells::Vector{NTuple{4, Int}}
+    _cell_nodes::CSRMapping
+    _cell_edges::CSRMapping
+    _edge_nodes::CSRMapping
+    _cell_cells::CSRMapping
+    _edge_cells::CSRMapping
+    _node_edges::CSRMapping
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
 end
 
@@ -197,6 +199,18 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
         end
     end
 
+    # --- Convert _cell_nodes to CSR ---
+    num_cells = length(_cell_nodes)
+    _cell_nodes_csr = CSRMapping(num_cells, 4)
+    for cid in 1:num_cells
+        cn = _cell_nodes[cid]
+        base = _cell_nodes_csr.offsets[cid] - 1
+        for j in 1:4
+            _cell_nodes_csr.values[base + j] = cn[j]
+        end
+    end
+    _cell_nodes = _cell_nodes_csr
+
     # --- Derive edges from cell-node connectivity ---
     edge_map = Dict{Tuple{Int, Int}, Int}()
     _cell_edges = NTuple{4, Int}[]
@@ -215,28 +229,40 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
         push!(_cell_edges, tuple(cell_edge_ids...))
     end
 
+    # --- Convert _cell_edges to CSR ---
+    _cell_edges_csr = CSRMapping(num_cells, 4)
+    for cid in 1:num_cells
+        ce = _cell_edges[cid]
+        base = _cell_edges_csr.offsets[cid] - 1
+        for j in 1:4
+            _cell_edges_csr.values[base + j] = ce[j]
+        end
+    end
+    _cell_edges = _cell_edges_csr
+
     n_edges = length(edge_map)
-    _edge_nodes = Vector{NTuple{2, Int}}(undef, n_edges)
+    _edge_nodes = CSRMapping(n_edges, 2)
     for ((n1, n2), edge_id) in edge_map
-        _edge_nodes[edge_id] = (n1, n2)
+        base = _edge_nodes.offsets[edge_id] - 1
+        _edge_nodes.values[base + 1] = n1
+        _edge_nodes.values[base + 2] = n2
     end
 
     # --- Derive cell neighbors from edge sharing ---
-    edge_cells = [Int[] for _ in 1:n_edges]
-    for cell_id in 1:length(_cell_nodes)
-        for e in _cell_edges[cell_id]
-            push!(edge_cells[e], cell_id)
+    _edge_cells_tmp = [Int[] for _ in 1:n_edges]
+    for cell_id in 1:num_cells
+        for e in getindex_fixed(_cell_edges, cell_id, Val(4))
+            push!(_edge_cells_tmp[e], cell_id)
         end
     end
 
-    num_cells = length(_cell_nodes)
-    _cell_cells = Vector{NTuple{4, Int}}(undef, num_cells)
+    _cell_cells = CSRMapping(num_cells, 4)
     for cell_id in 1:num_cells
-        ce = _cell_edges[cell_id]
+        ce = getindex_fixed(_cell_edges, cell_id, Val(4))
         neighbors = Int[]
         for e in ce
-            adj = edge_cells[e]
-            n1, n2 = _edge_nodes[e]
+            adj = _edge_cells_tmp[e]
+            n1, n2 = getindex_fixed(_edge_nodes, e, Val(2))
             if n1 == n2
                 # Self-loop edge (zero-length, e.g. at poles): no neighbor across it
                 push!(neighbors, 0)
@@ -247,13 +273,49 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
                 push!(neighbors, isempty(others) ? 0 : first(others))
             end
         end
-        _cell_cells[cell_id] = tuple(neighbors...)
+        base = _cell_cells.offsets[cell_id] - 1
+        for (j, nbr) in enumerate(neighbors)
+            _cell_cells.values[base + j] = nbr
+        end
+    end
+
+    # --- Derive edge → cells ---
+    edge_cell_counts = fill(0, n_edges)
+    for cid in 1:num_cells
+        for eid in getindex_fixed(_cell_edges, cid, Val(4))
+            edge_cell_counts[eid] += 1
+        end
+    end
+    _edge_cells, ptrs = CSRMapping(n_edges, edge_cell_counts)
+
+    for cid in 1:num_cells
+        for eid in getindex_fixed(_cell_edges, cid, Val(4))
+            pos = ptrs[eid]
+            _edge_cells.values[pos] = cid
+            ptrs[eid] += 1
+        end
+    end
+
+    # --- Derive node → edges ---
+    n_nodes = length(nodes)
+    node_edge_counts = fill(0, n_nodes)
+    for eid in 1:n_edges
+        n1, n2 = getindex_fixed(_edge_nodes, eid, Val(2))
+        node_edge_counts[n1] += 1
+        node_edge_counts[n2] += 1
+    end
+    _node_edges, ptrs = CSRMapping(n_nodes, node_edge_counts)
+
+    for eid in 1:n_edges
+        n1, n2 = getindex_fixed(_edge_nodes, eid, Val(2))
+        _node_edges.values[ptrs[n1]] = eid; ptrs[n1] += 1
+        _node_edges.values[ptrs[n2]] = eid; ptrs[n2] += 1
     end
 
     return ReducedGaussianGrid{typeof(M)}(
         M, nlat, R, lat_points, lon_counts, nodes,
         cell_volumes, cell_centroids, _cell_nodes,
-        _cell_edges, _edge_nodes, _cell_cells,
+        _cell_edges, _edge_nodes, _cell_cells, _edge_cells, _node_edges,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing))
 end
 
@@ -293,12 +355,12 @@ end
 
 function cell_nodes(g::ReducedGaussianGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    return g._cell_nodes[cell_id]
+    return getindex_fixed(g._cell_nodes, cell_id, Val(4))
 end
 
 function cell_cells(g::ReducedGaussianGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    return g._cell_cells[cell_id]
+    return getindex_fixed(g._cell_cells, cell_id, Val(4))
 end
 
 function node_cells(g::ReducedGaussianGrid, node_id::Int)
@@ -314,13 +376,28 @@ end
 
 function cell_edges(g::ReducedGaussianGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    return g._cell_edges[cell_id]
+    return getindex_fixed(g._cell_edges, cell_id, Val(4))
+end
+
+function edge_nodes(g::ReducedGaussianGrid, edge_id::Int)
+    _check_edge_id(g, edge_id)
+    return getindex_fixed(g._edge_nodes, edge_id, Val(2))
+end
+
+function edge_cells(g::ReducedGaussianGrid, edge_id::Int)
+    _check_edge_id(g, edge_id)
+    return g._edge_cells[edge_id]
+end
+
+function node_edges(g::ReducedGaussianGrid, node_id::Int)
+    _check_node_id(g, node_id)
+    return g._node_edges[node_id]
 end
 
 # -- Edge Geometry --
 
 function _edge_endpoints(g::ReducedGaussianGrid, edge_id::Int)
-    n1, n2 = g._edge_nodes[edge_id]
+    n1, n2 = getindex_fixed(g._edge_nodes, edge_id, Val(2))
     return (node_coordinates(g, n1), node_coordinates(g, n2))
 end
 
