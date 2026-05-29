@@ -24,6 +24,7 @@ struct HEALPixGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     _edge_nodes::CSRMapping
     _edge_cells::CSRMapping
     _node_edges::CSRMapping
+    _node_cells::CSRMapping
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
     rotation::SMatrix{3, 3, Float64, 9}
 end
@@ -272,6 +273,12 @@ end
 @inline function _check_node_id(g::HEALPixGrid, node_id::Int)
     @boundscheck 1 <= node_id <= num_nodes(g) ||
                  throw(BoundsError("node_id $node_id out of range [1, $(num_nodes(g))]"))
+    nothing
+end
+
+@inline function _check_edge_id(g::HEALPixGrid, edge_id::Int)
+    @boundscheck 1 <= edge_id <= num_edges(g) ||
+                 throw(BoundsError("edge_id $edge_id out of range [1, $(num_edges(g))]"))
     nothing
 end
 
@@ -590,6 +597,21 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
         _node_edges.values[ptrs[n2]] = eid; ptrs[n2] += 1
     end
 
+    # --- Derive node → cells ---
+    node_cell_counts = fill(0, n_nodes)
+    for cell_id in 1:n_cells
+        for node_id in getindex_fixed(_cell_nodes, cell_id, Val(4))
+            node_cell_counts[node_id] += 1
+        end
+    end
+    _node_cells, ptrs = CSRMapping(n_nodes, node_cell_counts)
+
+    for cell_id in 1:n_cells
+        for node_id in getindex_fixed(_cell_nodes, cell_id, Val(4))
+            _node_cells.values[ptrs[node_id]] = cell_id; ptrs[node_id] += 1
+        end
+    end
+
     # --- Apply nested ordering permutation if requested ---
     if ordering == :nested
         # Flatten ring centers for permutation computation
@@ -610,44 +632,53 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
         cell_volumes = [cell_volumes[perm[i]] for i in 1:n_cells]
         cell_centroids = [cell_centroids[perm[i]] for i in 1:n_cells]
 
-        _cell_nodes_perm = CSRMapping(n_cells, 4)
-        for i in 1:n_cells
-            old = getindex_fixed(_cell_nodes, perm[i], Val(4))
-            base = _cell_nodes_perm.offsets[i] - 1
-            for j in 1:4
-                _cell_nodes_perm.values[base + j] = old[j]
+        # Helper: permute uniform CSR (offsets unchanged, only values reordered)
+        function _permute_uniform_csr(csr::CSRMapping, perm::Vector{Int}, ::Val{K}) where {K}
+            n = length(csr)
+            new_values = Vector{Int}(undef, n * K)
+            for i in 1:n
+                base_old = csr.offsets[perm[i]] - 1
+                base_new = (i - 1) * K
+                for j in 1:K
+                    new_values[base_new + j] = csr.values[base_old + j]
+                end
             end
+            return CSRMapping(csr.offsets[1:(n+1)], new_values)
         end
-        _cell_nodes = _cell_nodes_perm
 
-        _cell_edges_perm = CSRMapping(n_cells, 4)
-        for i in 1:n_cells
-            old = getindex_fixed(_cell_edges, perm[i], Val(4))
-            base = _cell_edges_perm.offsets[i] - 1
-            for j in 1:4
-                _cell_edges_perm.values[base + j] = old[j]
-            end
-        end
-        _cell_edges = _cell_edges_perm
+        _cell_nodes = _permute_uniform_csr(_cell_nodes, perm, Val(4))
+        _cell_edges = _permute_uniform_csr(_cell_edges, perm, Val(4))
 
-        # For cell neighbors, permute the neighbor IDs too
-        _cell_cells_perm = CSRMapping(n_cells, 4)
-        for i in 1:n_cells
-            old_neighbors = getindex_fixed(_cell_cells, perm[i], Val(4))
-            base = _cell_cells_perm.offsets[i] - 1
+        # _cell_cells needs neighbor ID remapping via inv_perm
+        nc = n_cells
+        new_values = Vector{Int}(undef, nc * 4)
+        for i in 1:nc
+            base_old = _cell_cells.offsets[perm[i]] - 1
+            base_new = (i - 1) * 4
             for j in 1:4
-                _cell_cells_perm.values[base + j] =
-                    old_neighbors[j] == 0 ? 0 : inv_perm[old_neighbors[j]]
+                old_neighbor = _cell_cells.values[base_old + j]
+                new_values[base_new + j] = old_neighbor == 0 ? 0 : inv_perm[old_neighbor]
             end
         end
-        _cell_cells = _cell_cells_perm
+        _cell_cells = CSRMapping(_cell_cells.offsets[1:(nc+1)], new_values)
+
+        # Permute _node_cells (cell IDs change, node IDs don't)
+        _node_cells_perm, _ = CSRMapping(n_nodes, node_cell_counts)
+        for i in 1:n_nodes
+            old = _node_cells[i]
+            base = _node_cells_perm.offsets[i] - 1
+            for j in 1:length(old)
+                _node_cells_perm.values[base + j] = inv_perm[old[j]]
+            end
+        end
+        _node_cells = _node_cells_perm
     end
 
     return HEALPixGrid{typeof(M)}(
         M, nside, R, ordering, nodes,
         cell_volumes, cell_centroids, _cell_nodes,
         _cell_edges, _cell_cells, _edge_nodes,
-        _edge_cells, _node_edges,
+        _edge_cells, _node_edges, _node_cells,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing),
         rotation)
 end
@@ -701,13 +732,7 @@ end
 
 function node_cells(g::HEALPixGrid, node_id::Int)
     _check_node_id(g, node_id)
-    cells = Int[]
-    for cell_id in 1:num_cells(g)
-        if node_id in cell_nodes(g, cell_id)
-            push!(cells, cell_id)
-        end
-    end
-    return cells
+    return g._node_cells[node_id]
 end
 
 function cell_edges(g::HEALPixGrid, cell_id::Int)
@@ -731,12 +756,6 @@ function node_edges(g::HEALPixGrid, node_id::Int)
 end
 
 # -- Edge Geometry --
-
-@inline function _check_edge_id(g::HEALPixGrid, edge_id::Int)
-    @boundscheck 1 <= edge_id <= num_edges(g) ||
-                 throw(BoundsError("edge_id $edge_id out of range [1, $(num_edges(g))]"))
-    nothing
-end
 
 function _edge_endpoints(g::HEALPixGrid, edge_id::Int)
     n1, n2 = getindex_fixed(g._edge_nodes, edge_id, Val(2))
