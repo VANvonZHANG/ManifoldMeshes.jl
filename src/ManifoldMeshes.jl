@@ -24,7 +24,7 @@ export node_coordinates, cell_volume, cell_centroid
 export cell_nodes, cell_cells, node_cells, cell_edges
 export edge_length, edge_midpoint, edge_outward_normal
 export edge_cells, node_edges, edge_nodes
-export all_cell_volumes, all_node_coordinates
+export all_cell_volumes, all_node_coordinates, all_cell_centroids, all_edge_lengths
 export boundary_nodes, boundary_edges
 export dual, has_dual, cell_face, cell_local_2d
 export slerp, node_points, edge_segments, cell_polygons, cell_triangles

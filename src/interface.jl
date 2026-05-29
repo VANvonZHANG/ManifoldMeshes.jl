@@ -187,7 +187,10 @@ end
     edge_cells(g, edge_id)
 
 Return the 1 or 2 cells adjacent to edge `edge_id` as a view into internal storage.
-For boundary edges, returns a single-element view.
+
+Boundary edges (edges on the domain boundary) return a single-element view.
+This differs from `cell_cells`, which uses `0` as a sentinel for missing neighbors
+in fixed-size tuples. Here, the view length itself encodes the boundary.
 """
 function edge_cells(g::AbstractManifoldMesh, edge_id::Int)
     error("$(typeof(g)) must implement `edge_cells`")
@@ -231,6 +234,26 @@ overrides may return underlying storage directly.
 """
 function all_node_coordinates(g::AbstractManifoldMesh)
     [node_coordinates(g, i) for i in 1:num_nodes(g)]
+end
+
+"""
+    all_cell_centroids(g) -> Vector{SVector{3,Float64}}
+
+Return all cell centroids. Default implementation allocates; grid-specific
+overrides may return underlying storage directly.
+"""
+function all_cell_centroids(g::AbstractManifoldMesh)
+    [cell_centroid(g, i) for i in 1:num_cells(g)]
+end
+
+"""
+    all_edge_lengths(g) -> Vector{Float64}
+
+Return all edge lengths. Default implementation allocates; grid-specific
+overrides may return underlying storage directly.
+"""
+function all_edge_lengths(g::AbstractManifoldMesh)
+    [edge_length(g, i) for i in 1:num_edges(g)]
 end
 
 # -- Trait Functions --

@@ -1,6 +1,7 @@
 using ManifoldMeshes
 using Test
 using StaticArrays
+using LinearAlgebra
 
 @testset "Batch queries" begin
     # HEALPixGrid
@@ -35,4 +36,28 @@ using StaticArrays
     vols4 = all_cell_volumes(g4)
     @test length(vols4) == num_cells(g4)
     @test sum(vols4) ≈ 4π * g4.R^2 rtol = 1e-8
+
+    # Test all_cell_centroids
+    cents = all_cell_centroids(g)
+    @test length(cents) == num_cells(g)
+    @test eltype(cents) == SVector{3, Float64}
+    @test all(c -> norm(c) ≈ g.R, cents)
+
+    # Test all_edge_lengths
+    edge_lens = all_edge_lengths(g)
+    @test length(edge_lens) == num_edges(g)
+    @test all(l -> l >= 0, edge_lens)
+
+    # Test on other grid types
+    g2 = LatLonGrid(lat_edges=[-90.0, -30.0, 30.0, 90.0], lon_edges=collect(0.0:30.0:360.0), R=1.0)
+    @test length(all_cell_centroids(g2)) == num_cells(g2)
+    @test length(all_edge_lengths(g2)) == num_edges(g2)
+
+    g3 = CubedSphereGrid(n=4, R=1.0)
+    @test length(all_cell_centroids(g3)) == num_cells(g3)
+    @test length(all_edge_lengths(g3)) == num_edges(g3)
+
+    g4 = ReducedGaussianGrid(nlat=8, R=1.0)
+    @test length(all_cell_centroids(g4)) == num_cells(g4)
+    @test length(all_edge_lengths(g4)) == num_edges(g4)
 end
