@@ -18,10 +18,12 @@ struct HEALPixGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     nodes::Vector{SVector{3, Float64}}
     cell_volumes::Vector{Float64}
     cell_centroids::Vector{SVector{3, Float64}}
-    _cell_nodes::Vector{NTuple{4, Int}}
-    _cell_edges::Vector{NTuple{4, Int}}
-    _cell_cells::Vector{NTuple{4, Int}}
-    _edge_nodes::Vector{NTuple{2, Int}}
+    _cell_nodes::CSRMapping
+    _cell_edges::CSRMapping
+    _cell_cells::CSRMapping
+    _edge_nodes::CSRMapping
+    _edge_cells::CSRMapping
+    _node_edges::CSRMapping
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
     rotation::SMatrix{3, 3, Float64, 9}
 end
@@ -359,7 +361,7 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
     # Deduplicate corners using a Dict with rounded coordinates as keys
     corner_dict = Dict{Tuple{Int, Int, Int}, Int}()
     nodes = SVector{3, Float64}[]
-    _cell_nodes = Vector{NTuple{4, Int}}(undef, n_cells)
+    _cell_nodes = CSRMapping(n_cells, 4)
 
     function add_corner(v::SVector{3, Float64})
         # Round to 12 decimal places for deduplication (~1e-12 m precision at R=1)
@@ -462,7 +464,11 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
             ne_id = add_corner(ne_corner)
             nw_id = add_corner(nw_corner)
 
-            _cell_nodes[cell_id] = (sw_id, se_id, ne_id, nw_id)
+            base = _cell_nodes.offsets[cell_id] - 1
+            _cell_nodes.values[base + 1] = sw_id
+            _cell_nodes.values[base + 2] = se_id
+            _cell_nodes.values[base + 3] = ne_id
+            _cell_nodes.values[base + 4] = nw_id
             cell_id += 1
         end
     end
@@ -506,25 +512,37 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
     end
 
     n_edges = length(edge_map)
-    _edge_nodes = Vector{NTuple{2, Int}}(undef, n_edges)
+    _cell_edges_csr = CSRMapping(n_cells, 4)
+    for cid in 1:n_cells
+        ce = _cell_edges[cid]
+        base = _cell_edges_csr.offsets[cid] - 1
+        for j in 1:4
+            _cell_edges_csr.values[base + j] = ce[j]
+        end
+    end
+    _cell_edges = _cell_edges_csr
+
+    _edge_nodes = CSRMapping(n_edges, 2)
     for ((n1, n2), edge_id) in edge_map
-        _edge_nodes[edge_id] = (n1, n2)
+        base = _edge_nodes.offsets[edge_id] - 1
+        _edge_nodes.values[base + 1] = n1
+        _edge_nodes.values[base + 2] = n2
     end
 
     # --- Derive cell neighbors from edge sharing ---
-    edge_cells = [Int[] for _ in 1:n_edges]
+    _edge_cells_tmp = [Int[] for _ in 1:n_edges]
     for cell_id in 1:n_cells
-        for e in _cell_edges[cell_id]
-            push!(edge_cells[e], cell_id)
+        for e in getindex_fixed(_cell_edges, cell_id, Val(4))
+            push!(_edge_cells_tmp[e], cell_id)
         end
     end
 
-    _cell_cells = Vector{NTuple{4, Int}}(undef, n_cells)
+    _cell_cells = CSRMapping(n_cells, 4)
     for cell_id in 1:n_cells
-        ce = _cell_edges[cell_id]
+        ce = getindex_fixed(_cell_edges, cell_id, Val(4))
         neighbors = Int[]
         for e in ce
-            adj = edge_cells[e]
+            adj = _edge_cells_tmp[e]
             if length(adj) == 1
                 # Boundary edge or self-loop — no neighbor
                 push!(neighbors, 0)
@@ -533,7 +551,43 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
                 push!(neighbors, other)
             end
         end
-        _cell_cells[cell_id] = tuple(neighbors...)
+        base = _cell_cells.offsets[cell_id] - 1
+        for (j, nbr) in enumerate(neighbors)
+            _cell_cells.values[base + j] = nbr
+        end
+    end
+
+    # --- Derive edge → cells ---
+    edge_cell_counts = fill(0, n_edges)
+    for cid in 1:n_cells
+        for eid in getindex_fixed(_cell_edges, cid, Val(4))
+            edge_cell_counts[eid] += 1
+        end
+    end
+    _edge_cells, ptrs = CSRMapping(n_edges, edge_cell_counts)
+
+    for cid in 1:n_cells
+        for eid in getindex_fixed(_cell_edges, cid, Val(4))
+            pos = ptrs[eid]
+            _edge_cells.values[pos] = cid
+            ptrs[eid] += 1
+        end
+    end
+
+    # --- Derive node → edges ---
+    n_nodes = length(nodes)
+    node_edge_counts = fill(0, n_nodes)
+    for eid in 1:n_edges
+        n1, n2 = getindex_fixed(_edge_nodes, eid, Val(2))
+        node_edge_counts[n1] += 1
+        node_edge_counts[n2] += 1
+    end
+    _node_edges, ptrs = CSRMapping(n_nodes, node_edge_counts)
+
+    for eid in 1:n_edges
+        n1, n2 = getindex_fixed(_edge_nodes, eid, Val(2))
+        _node_edges.values[ptrs[n1]] = eid; ptrs[n1] += 1
+        _node_edges.values[ptrs[n2]] = eid; ptrs[n2] += 1
     end
 
     # --- Apply nested ordering permutation if requested ---
@@ -555,17 +609,36 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
         # Apply permutation to cell-related arrays
         cell_volumes = [cell_volumes[perm[i]] for i in 1:n_cells]
         cell_centroids = [cell_centroids[perm[i]] for i in 1:n_cells]
-        _cell_nodes = [_cell_nodes[perm[i]] for i in 1:n_cells]
-        _cell_edges = [_cell_edges[perm[i]] for i in 1:n_cells]
+
+        _cell_nodes_perm = CSRMapping(n_cells, 4)
+        for i in 1:n_cells
+            old = getindex_fixed(_cell_nodes, perm[i], Val(4))
+            base = _cell_nodes_perm.offsets[i] - 1
+            for j in 1:4
+                _cell_nodes_perm.values[base + j] = old[j]
+            end
+        end
+        _cell_nodes = _cell_nodes_perm
+
+        _cell_edges_perm = CSRMapping(n_cells, 4)
+        for i in 1:n_cells
+            old = getindex_fixed(_cell_edges, perm[i], Val(4))
+            base = _cell_edges_perm.offsets[i] - 1
+            for j in 1:4
+                _cell_edges_perm.values[base + j] = old[j]
+            end
+        end
+        _cell_edges = _cell_edges_perm
 
         # For cell neighbors, permute the neighbor IDs too
-        _cell_cells_perm = Vector{NTuple{4, Int}}(undef, n_cells)
+        _cell_cells_perm = CSRMapping(n_cells, 4)
         for i in 1:n_cells
-            old_neighbors = _cell_cells[perm[i]]
-            new_neighbors = ntuple(
-                j -> old_neighbors[j] == 0 ? 0 :
-                     inv_perm[old_neighbors[j]], 4)
-            _cell_cells_perm[i] = new_neighbors
+            old_neighbors = getindex_fixed(_cell_cells, perm[i], Val(4))
+            base = _cell_cells_perm.offsets[i] - 1
+            for j in 1:4
+                _cell_cells_perm.values[base + j] =
+                    old_neighbors[j] == 0 ? 0 : inv_perm[old_neighbors[j]]
+            end
         end
         _cell_cells = _cell_cells_perm
     end
@@ -574,6 +647,7 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
         M, nside, R, ordering, nodes,
         cell_volumes, cell_centroids, _cell_nodes,
         _cell_edges, _cell_cells, _edge_nodes,
+        _edge_cells, _node_edges,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing),
         rotation)
 end
@@ -614,12 +688,12 @@ end
 
 function cell_nodes(g::HEALPixGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    return g._cell_nodes[cell_id]
+    return getindex_fixed(g._cell_nodes, cell_id, Val(4))
 end
 
 function cell_cells(g::HEALPixGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    return g._cell_cells[cell_id]
+    return getindex_fixed(g._cell_cells, cell_id, Val(4))
 end
 
 function node_cells(g::HEALPixGrid, node_id::Int)
@@ -635,7 +709,22 @@ end
 
 function cell_edges(g::HEALPixGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    return g._cell_edges[cell_id]
+    return getindex_fixed(g._cell_edges, cell_id, Val(4))
+end
+
+function edge_nodes(g::HEALPixGrid, edge_id::Int)
+    _check_edge_id(g, edge_id)
+    return getindex_fixed(g._edge_nodes, edge_id, Val(2))
+end
+
+function edge_cells(g::HEALPixGrid, edge_id::Int)
+    _check_edge_id(g, edge_id)
+    return g._edge_cells[edge_id]
+end
+
+function node_edges(g::HEALPixGrid, node_id::Int)
+    _check_node_id(g, node_id)
+    return g._node_edges[node_id]
 end
 
 # -- Edge Geometry --
@@ -647,7 +736,7 @@ end
 end
 
 function _edge_endpoints(g::HEALPixGrid, edge_id::Int)
-    n1, n2 = g._edge_nodes[edge_id]
+    n1, n2 = getindex_fixed(g._edge_nodes, edge_id, Val(2))
     return (node_coordinates(g, n1), node_coordinates(g, n2))
 end
 
