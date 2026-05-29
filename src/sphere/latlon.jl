@@ -125,7 +125,7 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     n_cells = nlat * nlon
     n_nodes = (nlat + 1) * (nlon + 1)
     n_h_edges = (nlat + 1) * nlon
-    n_v_edges = nlat * (nlon + 1)
+    n_v_edges = nlat * nlon
     n_edges = n_h_edges + n_v_edges
 
     # cell → nodes (4 per cell)
@@ -149,9 +149,9 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
         cid = (ilat - 1) * nlon + ilon
         south = (ilat - 1) * nlon + ilon
         north = ilat * nlon + ilon
-        west = n_h_edges + (ilat - 1) * (nlon + 1) + ilon
+        west = n_h_edges + (ilat - 1) * nlon + ilon
         east_ilon = ilon == nlon ? 1 : ilon + 1
-        east = n_h_edges + (ilat - 1) * (nlon + 1) + east_ilon
+        east = n_h_edges + (ilat - 1) * nlon + east_ilon
         base = _cell_edges.offsets[cid] - 1
         _cell_edges.values[base + 1] = south
         _cell_edges.values[base + 2] = north
@@ -171,8 +171,8 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
         _edge_nodes.values[base + 2] = n2
     end
     # Vertical edges
-    for ilat in 1:nlat, ilon in 1:(nlon + 1)
-        eid = n_h_edges + (ilat - 1) * (nlon + 1) + ilon
+    for ilat in 1:nlat, ilon in 1:nlon
+        eid = n_h_edges + (ilat - 1) * nlon + ilon
         n1 = (ilat - 1) * (nlon + 1) + ilon
         n2 = ilat * (nlon + 1) + ilon
         base = _edge_nodes.offsets[eid] - 1
@@ -219,45 +219,16 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
         eid_n = ilat * nlon + ilon
         _edge_cells.values[ptrs[eid_n]] = cid; ptrs[eid_n] += 1
         # west edge
-        eid_w = n_h_edges + (ilat - 1) * (nlon + 1) + ilon
+        eid_w = n_h_edges + (ilat - 1) * nlon + ilon
         _edge_cells.values[ptrs[eid_w]] = cid; ptrs[eid_w] += 1
         # east edge
         east_ilon = ilon == nlon ? 1 : ilon + 1
-        eid_e = n_h_edges + (ilat - 1) * (nlon + 1) + east_ilon
+        eid_e = n_h_edges + (ilat - 1) * nlon + east_ilon
         _edge_cells.values[ptrs[eid_e]] = cid; ptrs[eid_e] += 1
     end
 
-    # node → edges (variable: 2 at poles, 4 interior, 3 at boundaries)
-    node_edge_counts = fill(4, n_nodes)
-    # Corner nodes (south pole corners)
-    for ilon in [1, nlon + 1]
-        nid = ilon
-        node_edge_counts[nid] = 2
-    end
-    # North pole corners
-    for ilon in [1, nlon + 1]
-        nid = nlat * (nlon + 1) + ilon
-        node_edge_counts[nid] = 2
-    end
-    _node_edges, ptrs = CSRMapping(n_nodes, node_edge_counts)
-
-    # Fill node → edges
-    # Horizontal edges
-    for ilat in 1:(nlat + 1), ilon in 1:nlon
-        eid = (ilat - 1) * nlon + ilon
-        n1 = (ilat - 1) * (nlon + 1) + ilon
-        n2 = (ilat - 1) * (nlon + 1) + ilon + 1
-        _node_edges.values[ptrs[n1]] = eid; ptrs[n1] += 1
-        _node_edges.values[ptrs[n2]] = eid; ptrs[n2] += 1
-    end
-    # Vertical edges
-    for ilat in 1:nlat, ilon in 1:(nlon + 1)
-        eid = n_h_edges + (ilat - 1) * (nlon + 1) + ilon
-        n1 = (ilat - 1) * (nlon + 1) + ilon
-        n2 = ilat * (nlon + 1) + ilon
-        _node_edges.values[ptrs[n1]] = eid; ptrs[n1] += 1
-        _node_edges.values[ptrs[n2]] = eid; ptrs[n2] += 1
-    end
+    # node_edges is computed on-the-fly to handle periodic boundaries correctly
+    _node_edges = CSRMapping(ones(Int, n_nodes + 1), Int[])
 
     return LatLonGrid(
         M, lat_edges, lon_edges, R, nlat, nlon, nodes, cell_volumes, cell_centroids,
@@ -299,7 +270,7 @@ manifold(g::LatLonGrid) = g.manifold
 num_cells(g::LatLonGrid) = g.nlat * g.nlon
 num_nodes(g::LatLonGrid) = (g.nlat + 1) * (g.nlon + 1)
 function num_edges(g::LatLonGrid)
-    return (g.nlat + 1) * g.nlon + g.nlat * (g.nlon + 1)
+    return (g.nlat + 1) * g.nlon + g.nlat * g.nlon
 end
 
 # -- Geometry: node_coordinates --
@@ -364,7 +335,24 @@ end
 
 function edge_nodes(g::LatLonGrid, edge_id::Int)
     _check_edge_id(g, edge_id)
-    return getindex_fixed(g._edge_nodes, edge_id, Val(2))
+    n_h = (g.nlat + 1) * g.nlon
+    if edge_id <= n_h
+        # Horizontal edge
+        idx = edge_id - 1
+        ilat = div(idx, g.nlon) + 1
+        ilon = rem(idx, g.nlon) + 1
+        n1 = (ilat - 1) * (g.nlon + 1) + ilon
+        n2 = (ilat - 1) * (g.nlon + 1) + ilon + 1
+        return (n1, n2)
+    else
+        # Vertical edge
+        idx = edge_id - n_h - 1
+        ilat = div(idx, g.nlon) + 1
+        ilon = rem(idx, g.nlon) + 1
+        n1 = (ilat - 1) * (g.nlon + 1) + ilon
+        n2 = ilat * (g.nlon + 1) + ilon
+        return (n1, n2)
+    end
 end
 
 function edge_cells(g::LatLonGrid, edge_id::Int)
@@ -374,7 +362,35 @@ end
 
 function node_edges(g::LatLonGrid, node_id::Int)
     _check_node_id(g, node_id)
-    return g._node_edges[node_id]
+    ilat, ilon = _node_indices(g, node_id)
+    nlon = g.nlon
+    n_h = (g.nlat + 1) * nlon
+    edges = Int[]
+
+    # For periodic boundary, nodes at ilon=nlon+1 share vertical edges with ilon=1
+    ilon_v = ilon > nlon ? 1 : ilon
+
+    # Horizontal edges (this node is either n1 or n2 of a horizontal edge)
+    if ilon > 1
+        # Node is n2 of horizontal edge at ilon-1
+        push!(edges, (ilat - 1) * nlon + (ilon - 1))
+    end
+    if ilon <= nlon
+        # Node is n1 of horizontal edge at ilon
+        push!(edges, (ilat - 1) * nlon + ilon)
+    end
+
+    # Vertical edges (use ilon_v for periodic boundary mapping)
+    if ilat > 1 && ilon_v <= nlon
+        # Node is n2 of vertical edge at ilat-1, ilon_v
+        push!(edges, n_h + (ilat - 2) * nlon + ilon_v)
+    end
+    if ilat <= g.nlat && ilon_v <= nlon
+        # Node is n1 of vertical edge at ilat, ilon_v
+        push!(edges, n_h + (ilat - 1) * nlon + ilon_v)
+    end
+
+    return edges
 end
 
 # -- Internal: Edge Endpoints --

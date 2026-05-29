@@ -22,4 +22,6 @@ end
     include("test_cubed_sphere.jl")
     include("test_reduced_gaussian.jl")
     include("test_healpix.jl")
+    include("test_csr.jl")
+    include("test_batch_queries.jl")
 end
