@@ -5,7 +5,7 @@
 
     # Meridional edge from 0°N to 45°N: angular length = π/4
     n_h = (g.nlat + 1) * g.nlon
-    meridional = n_h + (2 - 1) * g.nlon + 1  # v(ilat=2, ilon=1): 0°→45°N
+    meridional = n_h + (2 - 1) * (g.nlon + 1) + 1  # v(ilat=2, ilon=1): 0°→45°N
     @test edge_length(g, meridional) ≈ π / 4 atol=1e-8
 
     # Zonal edge at 45°N spanning 90°: geodesic (great circle) distance = π/3

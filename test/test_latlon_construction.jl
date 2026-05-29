@@ -10,7 +10,7 @@
     @test manifold(g) isa Sphere
     @test num_cells(g) == 2 * 4
     @test num_nodes(g) == 3 * 5
-    @test num_edges(g) == 3 * 4 + 2 * 4  # (nlat+1)*nlon + nlat*nlon
+    @test num_edges(g) == 3 * 4 + 2 * 5  # (nlat+1)*nlon + nlat*(nlon+1)
 
     # TopologyStyle
     @test TopologyStyle(g) === IsGrid()
