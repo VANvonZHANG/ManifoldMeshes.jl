@@ -318,6 +318,9 @@ function cell_volume(g::LatLonGrid, cell_id::Int)
     return g.cell_volumes[ilat, ilon]
 end
 
+all_cell_volumes(g::LatLonGrid) = vec(g.cell_volumes)
+all_node_coordinates(g::LatLonGrid) = vec(g.nodes)
+
 # -- Geometry: cell_centroid (cache read) --
 
 function cell_centroid(g::LatLonGrid, cell_id::Int)

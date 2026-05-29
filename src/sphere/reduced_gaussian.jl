@@ -346,6 +346,9 @@ function cell_volume(g::ReducedGaussianGrid, cell_id::Int)
     return g.cell_volumes[cell_id]
 end
 
+all_cell_volumes(g::ReducedGaussianGrid) = g.cell_volumes
+all_node_coordinates(g::ReducedGaussianGrid) = g.nodes
+
 function cell_centroid(g::ReducedGaussianGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
     return g.cell_centroids[cell_id]

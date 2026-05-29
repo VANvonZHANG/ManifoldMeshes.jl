@@ -369,6 +369,9 @@ function cell_volume(g::CubedSphereGrid, cell_id::Int)
     return g.cell_volumes[cell_id]
 end
 
+all_cell_volumes(g::CubedSphereGrid) = g.cell_volumes
+all_node_coordinates(g::CubedSphereGrid) = g.nodes
+
 function cell_centroid(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
     return g.cell_centroids[cell_id]
