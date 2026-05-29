@@ -72,6 +72,7 @@ struct ReducedGaussianGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     _cell_cells::CSRMapping
     _edge_cells::CSRMapping
     _node_edges::CSRMapping
+    _node_cells::CSRMapping
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
 end
 
@@ -312,10 +313,28 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
         _node_edges.values[ptrs[n2]] = eid; ptrs[n2] += 1
     end
 
+    # --- Derive node → cells ---
+    node_cell_counts = fill(0, n_nodes)
+    for cell_id in 1:num_cells
+        cn = getindex_fixed(_cell_nodes, cell_id, Val(4))
+        # Use unique node IDs to handle degenerate cells (e.g., triangles at poles)
+        for node_id in unique(cn)
+            node_cell_counts[node_id] += 1
+        end
+    end
+    _node_cells, ptrs = CSRMapping(n_nodes, node_cell_counts)
+
+    for cell_id in 1:num_cells
+        cn = getindex_fixed(_cell_nodes, cell_id, Val(4))
+        for node_id in unique(cn)
+            _node_cells.values[ptrs[node_id]] = cell_id; ptrs[node_id] += 1
+        end
+    end
+
     return ReducedGaussianGrid{typeof(M)}(
         M, nlat, R, lat_points, lon_counts, nodes,
         cell_volumes, cell_centroids, _cell_nodes,
-        _cell_edges, _edge_nodes, _cell_cells, _edge_cells, _node_edges,
+        _cell_edges, _edge_nodes, _cell_cells, _edge_cells, _node_edges, _node_cells,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing))
 end
 
@@ -368,13 +387,7 @@ end
 
 function node_cells(g::ReducedGaussianGrid, node_id::Int)
     _check_node_id(g, node_id)
-    cells = Int[]
-    for cell_id in 1:num_cells(g)
-        if node_id in cell_nodes(g, cell_id)
-            push!(cells, cell_id)
-        end
-    end
-    return cells
+    return g._node_cells[node_id]
 end
 
 function cell_edges(g::ReducedGaussianGrid, cell_id::Int)
