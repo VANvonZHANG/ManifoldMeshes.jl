@@ -318,16 +318,45 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
     for cell_id in 1:num_cells
         cn = getindex_fixed(_cell_nodes, cell_id, Val(4))
         # Use unique node IDs to handle degenerate cells (e.g., triangles at poles)
-        for node_id in unique(cn)
-            node_cell_counts[node_id] += 1
+        seen = (0, 0, 0, 0)
+        k = 0
+        for idx in 1:4
+            node_id = cn[idx]
+            is_new = true
+            for j in 1:k
+                if seen[j] == node_id
+                    is_new = false
+                    break
+                end
+            end
+            if is_new
+                k += 1
+                seen = Base.setindex(seen, node_id, k)
+                node_cell_counts[node_id] += 1
+            end
         end
     end
     _node_cells, ptrs = CSRMapping(n_nodes, node_cell_counts)
 
     for cell_id in 1:num_cells
         cn = getindex_fixed(_cell_nodes, cell_id, Val(4))
-        for node_id in unique(cn)
-            _node_cells.values[ptrs[node_id]] = cell_id; ptrs[node_id] += 1
+        seen = (0, 0, 0, 0)
+        k = 0
+        for idx in 1:4
+            node_id = cn[idx]
+            is_new = true
+            for j in 1:k
+                if seen[j] == node_id
+                    is_new = false
+                    break
+                end
+            end
+            if is_new
+                k += 1
+                seen = Base.setindex(seen, node_id, k)
+                @inbounds _node_cells.values[ptrs[node_id]] = cell_id
+                ptrs[node_id] += 1
+            end
         end
     end
 
