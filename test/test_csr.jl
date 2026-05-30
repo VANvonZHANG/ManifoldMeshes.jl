@@ -25,12 +25,18 @@ using Test
     @test ManifoldMeshes.n_neighbors(csr2, 3) == 1
 
     # Write via ptrs
-    csr2.values[ptrs[1]] = 1; ptrs[1] += 1
-    csr2.values[ptrs[1]] = 2; ptrs[1] += 1
-    csr2.values[ptrs[2]] = 3; ptrs[2] += 1
-    csr2.values[ptrs[2]] = 4; ptrs[2] += 1
-    csr2.values[ptrs[2]] = 5; ptrs[2] += 1
-    csr2.values[ptrs[3]] = 6; ptrs[3] += 1
+    csr2.values[ptrs[1]] = 1;
+    ptrs[1] += 1
+    csr2.values[ptrs[1]] = 2;
+    ptrs[1] += 1
+    csr2.values[ptrs[2]] = 3;
+    ptrs[2] += 1
+    csr2.values[ptrs[2]] = 4;
+    ptrs[2] += 1
+    csr2.values[ptrs[2]] = 5;
+    ptrs[2] += 1
+    csr2.values[ptrs[3]] = 6;
+    ptrs[3] += 1
 
     @test collect(csr2[1]) == [1, 2]
     @test collect(csr2[2]) == [3, 4, 5]

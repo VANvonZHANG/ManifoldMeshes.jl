@@ -309,8 +309,10 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
 
     for eid in 1:n_edges
         n1, n2 = getindex_fixed(_edge_nodes, eid, Val(2))
-        _node_edges.values[ptrs[n1]] = eid; ptrs[n1] += 1
-        _node_edges.values[ptrs[n2]] = eid; ptrs[n2] += 1
+        _node_edges.values[ptrs[n1]] = eid;
+        ptrs[n1] += 1
+        _node_edges.values[ptrs[n2]] = eid;
+        ptrs[n2] += 1
     end
 
     # --- Derive node → cells ---

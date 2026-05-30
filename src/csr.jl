@@ -29,7 +29,7 @@ function CSRMapping(n_entities::Int, neighbor_counts::Vector{Int})
         offsets[i + 1] = offsets[i] + neighbor_counts[i]
     end
     values = fill(0, offsets[end] - 1)
-    ptrs = copy(offsets[1:end-1])
+    ptrs = copy(offsets[1:(end - 1)])
     return CSRMapping(offsets, values), ptrs
 end
 
@@ -47,7 +47,8 @@ end
 # Fast fixed-size path (zero allocation, returns NTuple)
 function getindex_fixed(csr::CSRMapping, i::Int, ::Val{K}) where {K}
     @boundscheck 1 <= i <= length(csr) || throw(BoundsError(csr, i))
-    @boundscheck n_neighbors(csr, i) == K || throw(BoundsError("CSR row $i has $(n_neighbors(csr, i)) neighbors, expected $K"))
+    @boundscheck n_neighbors(csr, i) == K ||
+                 throw(BoundsError("CSR row $i has $(n_neighbors(csr, i)) neighbors, expected $K"))
     base = csr.offsets[i] - 1
     ntuple(k -> csr.values[base + k], Val(K))
 end

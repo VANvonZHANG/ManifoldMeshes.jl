@@ -136,6 +136,7 @@ function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
     for face in 1:6
         offset = (face - 1) * nn_face
         for j in 1:n, i in 1:n
+
             cell_id = _cubed_sphere_cell_id(n, face, i, j)
             sw = offset + (j - 1) * (n + 1) + i
             se = offset + (j - 1) * (n + 1) + (i + 1)
@@ -155,6 +156,7 @@ function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
         face_edge_offset = (face - 1) * face_edges
         h_edges_per_face = (n + 1) * n
         for j in 1:n, i in 1:n
+
             cell_id = _cubed_sphere_cell_id(n, face, i, j)
             south = face_edge_offset + (j - 1) * n + i
             north = face_edge_offset + j * n + i
@@ -177,6 +179,7 @@ function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
 
         # Horizontal edges
         for j in 1:(n + 1), i in 1:n
+
             eid = face_edge_offset + (j - 1) * n + i
             n1 = node_offset + (j - 1) * (n + 1) + i
             n2 = node_offset + (j - 1) * (n + 1) + (i + 1)
@@ -186,6 +189,7 @@ function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
         end
         # Vertical edges
         for j in 1:n, i in 1:(n + 1)
+
             eid = face_edge_offset + h_edges + (j - 1) * (n + 1) + i
             n1 = node_offset + (j - 1) * (n + 1) + i
             n2 = node_offset + j * (n + 1) + i
@@ -199,6 +203,7 @@ function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
     _cell_cells = CSRMapping(ncells, 4)
     for face in 1:6
         for j in 1:n, i in 1:n
+
             cell_id = _cubed_sphere_cell_id(n, face, i, j)
             west = i > 1 ? _cubed_sphere_cell_id(n, face, i - 1, j) : 0
             east = i < n ? _cubed_sphere_cell_id(n, face, i + 1, j) : 0
@@ -242,6 +247,7 @@ function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
 
     for face in 1:6
         for j in 1:n, i in 1:n
+
             cell_id = _cubed_sphere_cell_id(n, face, i, j)
             ce = getindex_fixed(_cell_edges, cell_id, Val(4))
             for eid in ce

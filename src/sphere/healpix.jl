@@ -593,8 +593,10 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
 
     for eid in 1:n_edges
         n1, n2 = getindex_fixed(_edge_nodes, eid, Val(2))
-        _node_edges.values[ptrs[n1]] = eid; ptrs[n1] += 1
-        _node_edges.values[ptrs[n2]] = eid; ptrs[n2] += 1
+        _node_edges.values[ptrs[n1]] = eid;
+        ptrs[n1] += 1
+        _node_edges.values[ptrs[n2]] = eid;
+        ptrs[n2] += 1
     end
 
     # --- Derive node → cells ---
@@ -647,7 +649,7 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
                 new_values[base_new + j] = old_neighbor == 0 ? 0 : inv_perm[old_neighbor]
             end
         end
-        _cell_cells = CSRMapping(_cell_cells.offsets[1:(nc+1)], new_values)
+        _cell_cells = CSRMapping(_cell_cells.offsets[1:(nc + 1)], new_values)
 
         # Permute _node_cells (cell IDs change, node IDs don't)
         _node_cells_perm, _ = CSRMapping(n_nodes, node_cell_counts)

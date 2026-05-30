@@ -132,6 +132,7 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     # cell → nodes (4 per cell)
     _cell_nodes = CSRMapping(n_cells, 4)
     for ilat in 1:nlat, ilon in 1:nlon
+
         cid = (ilat - 1) * nlon + ilon
         sw = (ilat - 1) * (nlon + 1) + ilon
         se = sw + 1
@@ -147,6 +148,7 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     # cell → edges (4 per cell)
     _cell_edges = CSRMapping(n_cells, 4)
     for ilat in 1:nlat, ilon in 1:nlon
+
         cid = (ilat - 1) * nlon + ilon
         south = (ilat - 1) * nlon + ilon
         north = ilat * nlon + ilon
@@ -164,6 +166,7 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     _edge_nodes = CSRMapping(n_edges, 2)
     # Horizontal edges
     for ilat in 1:(nlat + 1), ilon in 1:nlon
+
         eid = (ilat - 1) * nlon + ilon
         n1 = (ilat - 1) * (nlon + 1) + ilon
         n2 = (ilat - 1) * (nlon + 1) + ilon + 1
@@ -173,6 +176,7 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     end
     # Vertical edges
     for ilat in 1:nlat, ilon in 1:nlon
+
         eid = n_h_edges + (ilat - 1) * nlon + ilon
         n1 = (ilat - 1) * (nlon + 1) + ilon
         n2 = ilat * (nlon + 1) + ilon
@@ -184,6 +188,7 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     # cell → cells (4 per cell, 0 sentinel at poles)
     _cell_cells = CSRMapping(n_cells, 4)
     for ilat in 1:nlat, ilon in 1:nlon
+
         cid = (ilat - 1) * nlon + ilon
         south = ilat > 1 ? (ilat - 2) * nlon + ilon : 0
         north = ilat < nlat ? ilat * nlon + ilon : 0
@@ -212,25 +217,31 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
 
     # Fill edge → cells
     for ilat in 1:nlat, ilon in 1:nlon
+
         cid = (ilat - 1) * nlon + ilon
         # south edge
         eid_s = (ilat - 1) * nlon + ilon
-        _edge_cells.values[ptrs[eid_s]] = cid; ptrs[eid_s] += 1
+        _edge_cells.values[ptrs[eid_s]] = cid;
+        ptrs[eid_s] += 1
         # north edge
         eid_n = ilat * nlon + ilon
-        _edge_cells.values[ptrs[eid_n]] = cid; ptrs[eid_n] += 1
+        _edge_cells.values[ptrs[eid_n]] = cid;
+        ptrs[eid_n] += 1
         # west edge
         eid_w = n_h_edges + (ilat - 1) * nlon + ilon
-        _edge_cells.values[ptrs[eid_w]] = cid; ptrs[eid_w] += 1
+        _edge_cells.values[ptrs[eid_w]] = cid;
+        ptrs[eid_w] += 1
         # east edge
         east_ilon = ilon == nlon ? 1 : ilon + 1
         eid_e = n_h_edges + (ilat - 1) * nlon + east_ilon
-        _edge_cells.values[ptrs[eid_e]] = cid; ptrs[eid_e] += 1
+        _edge_cells.values[ptrs[eid_e]] = cid;
+        ptrs[eid_e] += 1
     end
 
     # node → cells (variable: 1 at poles, 2 at boundaries, 4 interior)
     node_cell_counts = fill(0, n_nodes)
     for ilat in 1:nlat, ilon in 1:nlon
+
         cid = (ilat - 1) * nlon + ilon
         sw = (ilat - 1) * (nlon + 1) + ilon
         se = sw + 1
@@ -244,15 +255,20 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
     _node_cells, ptrs2 = CSRMapping(n_nodes, node_cell_counts)
 
     for ilat in 1:nlat, ilon in 1:nlon
+
         cid = (ilat - 1) * nlon + ilon
         sw = (ilat - 1) * (nlon + 1) + ilon
         se = sw + 1
         nw = ilat * (nlon + 1) + ilon
         ne = nw + 1
-        @inbounds _node_cells.values[ptrs2[sw]] = cid; ptrs2[sw] += 1
-        @inbounds _node_cells.values[ptrs2[se]] = cid; ptrs2[se] += 1
-        @inbounds _node_cells.values[ptrs2[nw]] = cid; ptrs2[nw] += 1
-        @inbounds _node_cells.values[ptrs2[ne]] = cid; ptrs2[ne] += 1
+        @inbounds _node_cells.values[ptrs2[sw]] = cid;
+        ptrs2[sw] += 1
+        @inbounds _node_cells.values[ptrs2[se]] = cid;
+        ptrs2[se] += 1
+        @inbounds _node_cells.values[ptrs2[nw]] = cid;
+        ptrs2[nw] += 1
+        @inbounds _node_cells.values[ptrs2[ne]] = cid;
+        ptrs2[ne] += 1
     end
 
     # node_edges is computed on-the-fly to handle periodic boundaries correctly

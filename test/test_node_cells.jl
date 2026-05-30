@@ -7,7 +7,7 @@ using StaticArrays
     g = LatLonGrid(
         lat_edges = [-90.0, -30.0, 30.0, 90.0],
         lon_edges = collect(0.0:30.0:360.0),
-        R = 1.0,
+        R = 1.0
     )
     # Node at intersection of lat=-30, lon=30 (interior)
     # ilat=2, ilon=2 -> node_id = (2-1)*(12+1) + 2 = 15
