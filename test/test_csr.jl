@@ -42,3 +42,18 @@ using Test
     @test length(csr0[1]) == 0
     @test length(csr0[2]) == 2
 end
+
+@testset "CSR getindex returns view" begin
+    csr = ManifoldMeshes.CSRMapping(3, 2)
+    csr.values[1:2] = [10, 20]
+    csr.values[3:4] = [30, 40]
+    csr.values[5:6] = [50, 60]
+
+    v = csr[2]
+    @test isa(v, SubArray)  # view, not copy
+    @test v == [30, 40]
+
+    # Mutating the view should mutate the underlying CSR
+    v[1] = 999
+    @test csr.values[3] == 999
+end

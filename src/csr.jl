@@ -41,7 +41,7 @@ function Base.getindex(csr::CSRMapping, i::Int)
     @boundscheck 1 <= i <= length(csr) || throw(BoundsError(csr, i))
     start = csr.offsets[i]
     stop = csr.offsets[i + 1] - 1
-    return copy(csr.values[start:stop])
+    return @view csr.values[start:stop]
 end
 
 # Fast fixed-size path (zero allocation, returns NTuple)
