@@ -24,4 +24,5 @@ end
     include("test_healpix.jl")
     include("test_csr.jl")
     include("test_batch_queries.jl")
+    include("test_node_cells.jl")
 end
