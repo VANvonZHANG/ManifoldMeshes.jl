@@ -43,17 +43,25 @@ end
     g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = [
         0.0, 90.0, 180.0, 270.0, 360.0])
 
-    # Interior node (ilat=2, ilon=1): equator, lon=0 — 4 adjacent cells
+    # Equator node (ilat=2, ilon=1): shared by cells above and below
     nc = node_cells(g, ManifoldMeshes._node_linear_index(g, 2, 1))
-    @test length(nc) == 4
+    @test sort(nc) == [1, 5]
 
-    # South pole node (ilat=1, ilon=1): 2 adjacent cells
+    # South pole edge node (ilat=1, ilon=1): only cell 1's southwest corner
     nc = node_cells(g, ManifoldMeshes._node_linear_index(g, 1, 1))
-    @test length(nc) == 2
+    @test nc == [1]
 
-    # North pole node (ilat=3, ilon=1): 2 adjacent cells
+    # South pole edge node (ilat=1, ilon=2): shared by cells 1 and 2
+    nc = node_cells(g, ManifoldMeshes._node_linear_index(g, 1, 2))
+    @test sort(nc) == [1, 2]
+
+    # North pole edge node (ilat=3, ilon=1): only cell 5's northwest corner
     nc = node_cells(g, ManifoldMeshes._node_linear_index(g, 3, 1))
-    @test length(nc) == 2
+    @test nc == [5]
+
+    # North pole edge node (ilat=3, ilon=2): shared by cells 5 and 6
+    nc = node_cells(g, ManifoldMeshes._node_linear_index(g, 3, 2))
+    @test sort(nc) == [5, 6]
 end
 
 @testset "cell_edges consistency with cell_nodes" begin

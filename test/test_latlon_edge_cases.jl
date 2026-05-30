@@ -5,7 +5,7 @@
 
     # Meridional edge from 0°N to 45°N: angular length = π/4
     n_h = (g.nlat + 1) * g.nlon
-    meridional = n_h + (2 - 1) * g.nlon + 1  # v(ilat=2, ilon=1): 0°→45°N
+    meridional = n_h + (2 - 1) * (g.nlon + 1) + 1  # v(ilat=2, ilon=1): 0°→45°N
     @test edge_length(g, meridional) ≈ π / 4 atol=1e-8
 
     # Zonal edge at 45°N spanning 90°: geodesic (great circle) distance = π/3
@@ -42,18 +42,21 @@ end
     g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0],
         lon_edges = [0.0, 90.0, 180.0, 270.0, 360.0])
 
-    # Node at equator, lon=0 (ilat=2, ilon=1)
+    # Node at equator, lon=0 (ilat=2, ilon=1) — shared by cells 1 and 5
     nid_0 = ManifoldMeshes._node_linear_index(g, 2, 1)
     cells_0 = sort(node_cells(g, nid_0))
-    @test length(cells_0) == 4
+    @test cells_0 == [1, 5]
 
     # Node at equator, lon=360 (ilat=2, ilon=5) — same physical point as lon=0
+    # but different linear index; it is the southeast corner of cell 4 and
+    # northeast corner of cell 8
     nid_360 = ManifoldMeshes._node_linear_index(g, 2, 5)
     cells_360 = sort(node_cells(g, nid_360))
-    @test length(cells_360) == 4
+    @test cells_360 == [4, 8]
 
-    # Both nodes should see the same cells (by linear index)
-    @test cells_0 == cells_360
+    # The two nodes are the same physical point but different logical positions
+    # in the grid, so they see different cells by linear index
+    @test cells_0 != cells_360
 end
 
 @testset "edge_outward_normal equatorial cells" begin

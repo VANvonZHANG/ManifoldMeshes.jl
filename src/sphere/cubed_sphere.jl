@@ -14,6 +14,13 @@ struct CubedSphereGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     nodes::Vector{SVector{3, Float64}}
     cell_volumes::Vector{Float64}
     cell_centroids::Vector{SVector{3, Float64}}
+    _cell_nodes::CSRMapping
+    _cell_edges::CSRMapping
+    _cell_cells::CSRMapping
+    _edge_nodes::CSRMapping
+    _edge_cells::CSRMapping
+    _node_edges::CSRMapping
+    _node_cells::CSRMapping
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
     rotation::SMatrix{3, 3, Float64, 9}
 end
@@ -118,8 +125,175 @@ function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
         end
     end
 
+    ncells = 6 * n * n
+    nn_face = (n + 1) * (n + 1)
+    n_nodes = 6 * nn_face
+    face_edges = 2 * n * (n + 1)
+    n_edges = 6 * face_edges
+
+    # cell → nodes (4 per cell)
+    _cell_nodes = CSRMapping(ncells, 4)
+    for face in 1:6
+        offset = (face - 1) * nn_face
+        for j in 1:n, i in 1:n
+
+            cell_id = _cubed_sphere_cell_id(n, face, i, j)
+            sw = offset + (j - 1) * (n + 1) + i
+            se = offset + (j - 1) * (n + 1) + (i + 1)
+            ne = offset + j * (n + 1) + (i + 1)
+            nw = offset + j * (n + 1) + i
+            base = _cell_nodes.offsets[cell_id] - 1
+            _cell_nodes.values[base + 1] = sw
+            _cell_nodes.values[base + 2] = se
+            _cell_nodes.values[base + 3] = ne
+            _cell_nodes.values[base + 4] = nw
+        end
+    end
+
+    # cell → edges (4 per cell)
+    _cell_edges = CSRMapping(ncells, 4)
+    for face in 1:6
+        face_edge_offset = (face - 1) * face_edges
+        h_edges_per_face = (n + 1) * n
+        for j in 1:n, i in 1:n
+
+            cell_id = _cubed_sphere_cell_id(n, face, i, j)
+            south = face_edge_offset + (j - 1) * n + i
+            north = face_edge_offset + j * n + i
+            west = face_edge_offset + h_edges_per_face + (j - 1) * (n + 1) + i
+            east = face_edge_offset + h_edges_per_face + (j - 1) * (n + 1) + (i + 1)
+            base = _cell_edges.offsets[cell_id] - 1
+            _cell_edges.values[base + 1] = south
+            _cell_edges.values[base + 2] = north
+            _cell_edges.values[base + 3] = west
+            _cell_edges.values[base + 4] = east
+        end
+    end
+
+    # edge → nodes (2 per edge)
+    _edge_nodes = CSRMapping(n_edges, 2)
+    for face in 1:6
+        face_edge_offset = (face - 1) * face_edges
+        h_edges = (n + 1) * n
+        node_offset = (face - 1) * nn_face
+
+        # Horizontal edges
+        for j in 1:(n + 1), i in 1:n
+
+            eid = face_edge_offset + (j - 1) * n + i
+            n1 = node_offset + (j - 1) * (n + 1) + i
+            n2 = node_offset + (j - 1) * (n + 1) + (i + 1)
+            base = _edge_nodes.offsets[eid] - 1
+            _edge_nodes.values[base + 1] = n1
+            _edge_nodes.values[base + 2] = n2
+        end
+        # Vertical edges
+        for j in 1:n, i in 1:(n + 1)
+
+            eid = face_edge_offset + h_edges + (j - 1) * (n + 1) + i
+            n1 = node_offset + (j - 1) * (n + 1) + i
+            n2 = node_offset + j * (n + 1) + i
+            base = _edge_nodes.offsets[eid] - 1
+            _edge_nodes.values[base + 1] = n1
+            _edge_nodes.values[base + 2] = n2
+        end
+    end
+
+    # cell → cells (4 per cell, 0 sentinel at face boundaries)
+    _cell_cells = CSRMapping(ncells, 4)
+    for face in 1:6
+        for j in 1:n, i in 1:n
+
+            cell_id = _cubed_sphere_cell_id(n, face, i, j)
+            west = i > 1 ? _cubed_sphere_cell_id(n, face, i - 1, j) : 0
+            east = i < n ? _cubed_sphere_cell_id(n, face, i + 1, j) : 0
+            south = j > 1 ? _cubed_sphere_cell_id(n, face, i, j - 1) : 0
+            north = j < n ? _cubed_sphere_cell_id(n, face, i, j + 1) : 0
+            base = _cell_cells.offsets[cell_id] - 1
+            _cell_cells.values[base + 1] = south
+            _cell_cells.values[base + 2] = north
+            _cell_cells.values[base + 3] = west
+            _cell_cells.values[base + 4] = east
+        end
+    end
+
+    # edge → cells (variable: 1 at face boundaries, 2 interior)
+    edge_cell_counts = fill(2, n_edges)
+    for face in 1:6
+        face_edge_offset = (face - 1) * face_edges
+        h_edges = (n + 1) * n
+        # South boundary of face (j=1 horizontal edges)
+        for i in 1:n
+            eid = face_edge_offset + (1 - 1) * n + i
+            edge_cell_counts[eid] = 1
+        end
+        # North boundary (j=n+1 horizontal edges)
+        for i in 1:n
+            eid = face_edge_offset + n * n + i
+            edge_cell_counts[eid] = 1
+        end
+        # West boundary (i=1 vertical edges)
+        for j in 1:n
+            eid = face_edge_offset + h_edges + (j - 1) * (n + 1) + 1
+            edge_cell_counts[eid] = 1
+        end
+        # East boundary (i=n+1 vertical edges)
+        for j in 1:n
+            eid = face_edge_offset + h_edges + (j - 1) * (n + 1) + (n + 1)
+            edge_cell_counts[eid] = 1
+        end
+    end
+    _edge_cells, ptrs = CSRMapping(n_edges, edge_cell_counts)
+
+    for face in 1:6
+        for j in 1:n, i in 1:n
+
+            cell_id = _cubed_sphere_cell_id(n, face, i, j)
+            ce = getindex_fixed(_cell_edges, cell_id, Val(4))
+            for eid in ce
+                _edge_cells.values[ptrs[eid]] = cell_id
+                ptrs[eid] += 1
+            end
+        end
+    end
+
+    # node → edges (variable)
+    node_edge_counts = fill(0, n_nodes)
+    for eid in 1:n_edges
+        n1, n2 = getindex_fixed(_edge_nodes, eid, Val(2))
+        node_edge_counts[n1] += 1
+        node_edge_counts[n2] += 1
+    end
+    _node_edges, ptrs = CSRMapping(n_nodes, node_edge_counts)
+
+    for eid in 1:n_edges
+        n1, n2 = getindex_fixed(_edge_nodes, eid, Val(2))
+        _node_edges.values[ptrs[n1]] = eid
+        ptrs[n1] += 1
+        _node_edges.values[ptrs[n2]] = eid
+        ptrs[n2] += 1
+    end
+
+    # --- Derive node → cells ---
+    node_cell_counts = fill(0, n_nodes)
+    for cell_id in 1:ncells
+        for node_id in getindex_fixed(_cell_nodes, cell_id, Val(4))
+            node_cell_counts[node_id] += 1
+        end
+    end
+    _node_cells, ptrs = CSRMapping(n_nodes, node_cell_counts)
+
+    for cell_id in 1:ncells
+        for node_id in getindex_fixed(_cell_nodes, cell_id, Val(4))
+            @inbounds _node_cells.values[ptrs[node_id]] = cell_id
+            @inbounds ptrs[node_id] += 1
+        end
+    end
+
     return CubedSphereGrid(
         M, n, R, nodes, cell_volumes, cell_centroids,
+        _cell_nodes, _cell_edges, _cell_cells,
+        _edge_nodes, _edge_cells, _node_edges, _node_cells,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing),
         rotation)
 end
@@ -218,6 +392,9 @@ function cell_volume(g::CubedSphereGrid, cell_id::Int)
     return g.cell_volumes[cell_id]
 end
 
+all_cell_volumes(g::CubedSphereGrid) = g.cell_volumes
+all_node_coordinates(g::CubedSphereGrid) = g.nodes
+
 function cell_centroid(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
     return g.cell_centroids[cell_id]
@@ -227,101 +404,43 @@ end
 
 function cell_nodes(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    n = g.n
-    face = div(cell_id - 1, n * n) + 1
-    local_id = rem(cell_id - 1, n * n) + 1
-    j = div(local_id - 1, n) + 1
-    i = rem(local_id - 1, n) + 1
-
-    nn_face = (n + 1) * (n + 1)
-    offset = (face - 1) * nn_face
-
-    sw = offset + (j - 1) * (n + 1) + i
-    se = offset + (j - 1) * (n + 1) + (i + 1)
-    ne = offset + j * (n + 1) + (i + 1)
-    nw = offset + j * (n + 1) + i
-
-    return (sw, se, ne, nw)
+    return getindex_fixed(g._cell_nodes, cell_id, Val(4))
 end
 
 function cell_cells(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    n = g.n
-    face = div(cell_id - 1, n * n) + 1
-    local_id = rem(cell_id - 1, n * n) + 1
-    j = div(local_id - 1, n) + 1
-    i = rem(local_id - 1, n) + 1
-
-    west = i > 1 ? _cubed_sphere_cell_id(n, face, i - 1, j) : 0
-    east = i < n ? _cubed_sphere_cell_id(n, face, i + 1, j) : 0
-    south = j > 1 ? _cubed_sphere_cell_id(n, face, i, j - 1) : 0
-    north = j < n ? _cubed_sphere_cell_id(n, face, i, j + 1) : 0
-
-    return (south, north, west, east)
-end
-
-function node_cells(g::CubedSphereGrid, node_id::Int)
-    _check_node_id(g, node_id)
-    cells = Int[]
-    for cell_id in 1:num_cells(g)
-        if node_id in cell_nodes(g, cell_id)
-            push!(cells, cell_id)
-        end
-    end
-    return cells
+    return getindex_fixed(g._cell_cells, cell_id, Val(4))
 end
 
 function cell_edges(g::CubedSphereGrid, cell_id::Int)
     _check_cell_id(g, cell_id)
-    n = g.n
-    face = div(cell_id - 1, n * n) + 1
-    local_id = rem(cell_id - 1, n * n) + 1
-    j = div(local_id - 1, n) + 1
-    i = rem(local_id - 1, n) + 1
+    return getindex_fixed(g._cell_edges, cell_id, Val(4))
+end
 
-    face_edge_offset = (face - 1) * 2 * n * (n + 1)
-    h_edges_per_face = (n + 1) * n
+function edge_nodes(g::CubedSphereGrid, edge_id::Int)
+    _check_edge_id(g, edge_id)
+    return getindex_fixed(g._edge_nodes, edge_id, Val(2))
+end
 
-    # South edge (horizontal, row j)
-    south = face_edge_offset + (j - 1) * n + i
-    # North edge (horizontal, row j+1)
-    north = face_edge_offset + j * n + i
-    # West edge (vertical, column i)
-    west = face_edge_offset + h_edges_per_face + (j - 1) * (n + 1) + i
-    # East edge (vertical, column i+1)
-    east = face_edge_offset + h_edges_per_face + (j - 1) * (n + 1) + (i + 1)
+function edge_cells(g::CubedSphereGrid, edge_id::Int)
+    _check_edge_id(g, edge_id)
+    return g._edge_cells[edge_id]
+end
 
-    return (south, north, west, east)
+function node_edges(g::CubedSphereGrid, node_id::Int)
+    _check_node_id(g, node_id)
+    return g._node_edges[node_id]
+end
+
+function node_cells(g::CubedSphereGrid, node_id::Int)
+    _check_node_id(g, node_id)
+    return g._node_cells[node_id]
 end
 
 # -- Edge Geometry --
 
 function _edge_endpoints(g::CubedSphereGrid, edge_id::Int)
-    n = g.n
-    face_edges = 2 * n * (n + 1)
-    face = div(edge_id - 1, face_edges) + 1
-    local_edge = rem(edge_id - 1, face_edges) + 1
-    h_edges = (n + 1) * n
-
-    nn_face = (n + 1) * (n + 1)
-    node_offset = (face - 1) * nn_face
-
-    if local_edge <= h_edges
-        # Horizontal edge: along a row
-        idx = local_edge - 1
-        j = div(idx, n) + 1
-        i = rem(idx, n) + 1
-        n1 = node_offset + (j - 1) * (n + 1) + i
-        n2 = node_offset + (j - 1) * (n + 1) + (i + 1)
-    else
-        # Vertical edge: along a column
-        idx = local_edge - h_edges - 1
-        j = div(idx, n + 1) + 1
-        i = rem(idx, n + 1) + 1
-        n1 = node_offset + (j - 1) * (n + 1) + i
-        n2 = node_offset + j * (n + 1) + i
-    end
-
+    n1, n2 = getindex_fixed(g._edge_nodes, edge_id, Val(2))
     return (node_coordinates(g, n1), node_coordinates(g, n2))
 end
 

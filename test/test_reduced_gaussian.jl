@@ -74,7 +74,7 @@ end
     # Spot-check node_cells for 3 nodes
     for i in [1, num_nodes(g) ÷ 2, num_nodes(g)]
         cells = node_cells(g, i)
-        @test cells isa Vector{Int}
+        @test cells isa AbstractVector{Int}
         @test all(c -> 1 <= c <= num_cells(g), cells)
     end
 end
