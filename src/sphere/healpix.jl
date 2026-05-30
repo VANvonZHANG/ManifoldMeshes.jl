@@ -632,20 +632,6 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
         cell_volumes = [cell_volumes[perm[i]] for i in 1:n_cells]
         cell_centroids = [cell_centroids[perm[i]] for i in 1:n_cells]
 
-        # Helper: permute uniform CSR (offsets unchanged, only values reordered)
-        function _permute_uniform_csr(csr::CSRMapping, perm::Vector{Int}, ::Val{K}) where {K}
-            n = length(csr)
-            new_values = Vector{Int}(undef, n * K)
-            for i in 1:n
-                base_old = csr.offsets[perm[i]] - 1
-                base_new = (i - 1) * K
-                for j in 1:K
-                    new_values[base_new + j] = csr.values[base_old + j]
-                end
-            end
-            return CSRMapping(csr.offsets[1:(n+1)], new_values)
-        end
-
         _cell_nodes = _permute_uniform_csr(_cell_nodes, perm, Val(4))
         _cell_edges = _permute_uniform_csr(_cell_edges, perm, Val(4))
 

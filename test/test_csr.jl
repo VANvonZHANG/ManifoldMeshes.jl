@@ -57,3 +57,17 @@ end
     v[1] = 999
     @test csr.values[3] == 999
 end
+
+@testset "CSR uniform permutation" begin
+    csr = ManifoldMeshes.CSRMapping(3, 2)
+    csr.values[1:2] = [10, 20]
+    csr.values[3:4] = [30, 40]
+    csr.values[5:6] = [50, 60]
+
+    perm = [3, 1, 2]  # new_id -> old_id
+    perm_csr = ManifoldMeshes._permute_uniform_csr(csr, perm, Val(2))
+
+    @test perm_csr[1] == [50, 60]  # was old 3
+    @test perm_csr[2] == [10, 20]  # was old 1
+    @test perm_csr[3] == [30, 40]  # was old 2
+end

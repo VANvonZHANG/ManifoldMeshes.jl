@@ -51,3 +51,25 @@ function getindex_fixed(csr::CSRMapping, i::Int, ::Val{K}) where {K}
     base = csr.offsets[i] - 1
     ntuple(k -> csr.values[base + k], Val(K))
 end
+
+"""
+    _permute_uniform_csr(csr::CSRMapping, perm::Vector{Int}, ::Val{K}) where {K}
+
+Permute the values of a uniform CSR mapping (fixed `K` entries per row) according
+to `perm`, where `perm[new_id] = old_id`. Offsets are unchanged; only values are
+reordered.
+
+Used by HEALPixGrid to apply ring→nested ordering permutation.
+"""
+function _permute_uniform_csr(csr::CSRMapping, perm::Vector{Int}, ::Val{K}) where {K}
+    n = length(csr)
+    new_values = Vector{Int}(undef, n * K)
+    for i in 1:n
+        base_old = csr.offsets[perm[i]] - 1
+        base_new = (i - 1) * K
+        for j in 1:K
+            @inbounds new_values[base_new + j] = csr.values[base_old + j]
+        end
+    end
+    return CSRMapping(csr.offsets[1:(n + 1)], new_values)
+end
