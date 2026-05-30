@@ -23,6 +23,7 @@ struct LatLonGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     _edge_nodes::CSRMapping
     _edge_cells::CSRMapping
     _node_edges::CSRMapping
+    _node_cells::CSRMapping
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
 end
 
@@ -227,12 +228,40 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
         _edge_cells.values[ptrs[eid_e]] = cid; ptrs[eid_e] += 1
     end
 
+    # node → cells (variable: 1 at poles, 2 at boundaries, 4 interior)
+    node_cell_counts = fill(0, n_nodes)
+    for ilat in 1:nlat, ilon in 1:nlon
+        cid = (ilat - 1) * nlon + ilon
+        sw = (ilat - 1) * (nlon + 1) + ilon
+        se = sw + 1
+        nw = ilat * (nlon + 1) + ilon
+        ne = nw + 1
+        node_cell_counts[sw] += 1
+        node_cell_counts[se] += 1
+        node_cell_counts[nw] += 1
+        node_cell_counts[ne] += 1
+    end
+    _node_cells, ptrs2 = CSRMapping(n_nodes, node_cell_counts)
+
+    for ilat in 1:nlat, ilon in 1:nlon
+        cid = (ilat - 1) * nlon + ilon
+        sw = (ilat - 1) * (nlon + 1) + ilon
+        se = sw + 1
+        nw = ilat * (nlon + 1) + ilon
+        ne = nw + 1
+        @inbounds _node_cells.values[ptrs2[sw]] = cid; ptrs2[sw] += 1
+        @inbounds _node_cells.values[ptrs2[se]] = cid; ptrs2[se] += 1
+        @inbounds _node_cells.values[ptrs2[nw]] = cid; ptrs2[nw] += 1
+        @inbounds _node_cells.values[ptrs2[ne]] = cid; ptrs2[ne] += 1
+    end
+
     # node_edges is computed on-the-fly to handle periodic boundaries correctly
     _node_edges = CSRMapping(ones(Int, n_nodes + 1), Int[])
 
     return LatLonGrid(
         M, lat_edges, lon_edges, R, nlat, nlon, nodes, cell_volumes, cell_centroids,
         _cell_nodes, _cell_edges, _cell_cells, _edge_nodes, _edge_cells, _node_edges,
+        _node_cells,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing))
 end
 
@@ -314,18 +343,7 @@ end
 
 function node_cells(g::LatLonGrid, node_id::Int)
     _check_node_id(g, node_id)
-    ilat, ilon = _node_indices(g, node_id)
-    cells = Int[]
-    for i in (ilat - 1, ilat)
-        (i < 1 || i > g.nlat) && continue
-        for j in (ilon - 1, ilon)
-            jj = j < 1 ? g.nlon : (j > g.nlon ? 1 : j)
-            if 1 ≤ i ≤ g.nlat && 1 ≤ jj ≤ g.nlon
-                push!(cells, _cell_linear_index(g, i, jj))
-            end
-        end
-    end
-    return cells
+    return g._node_cells[node_id]
 end
 
 function cell_edges(g::LatLonGrid, cell_id::Int)
