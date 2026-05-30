@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **CSR topology storage** (`CSRMapping`): Compressed Sparse Row data structure for O(1) topology lookups, replacing O(N) linear scans across all 4 grid types
+- **Edge topology**: `edge_cells`, `node_edges`, `edge_nodes` interface functions implemented for LatLonGrid, CubedSphereGrid, ReducedGaussianGrid, and HEALPixGrid
+- **Batch query API**: Zero-copy batch functions (`all_cell_centroids`, `all_edge_lengths`, `all_cell_volumes`) returning `Tuple`-of-`SVector` for zero GC pressure
+- **`node_cells` precomputation**: Inverse mapping (node→cells) precomputed at construction time for all grid types with `@inbounds` optimizations
+
+### Changed
+
+- Migrated all 4 grid types to `CSRMapping`-based topology storage (LatLonGrid, CubedSphereGrid, ReducedGaussianGrid, HEALPixGrid)
+- Extracted `_permute_uniform_csr` shared helper for reuse across uniform-cell grid types
+- CSR accessors now return `SubArray` via `@view` for zero-copy semantics
+
+### Fixed
+
+- Corrected LatLonGrid edge counts
+- Fixed `_check_edge_id` placement in HEALPixGrid
+- Optimized HEALPixGrid nested ordering permutation
+- Eliminated `unique(cn)` allocation in ReducedGaussianGrid `node_cells` build
+- Updated test type checks from `Vector{Int}` to `AbstractVector{Int}` for `@view` compatibility
+
 ## [0.4.0] - 2026-05-28
 
 ### Added
