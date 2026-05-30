@@ -608,7 +608,8 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
 
     for cell_id in 1:n_cells
         for node_id in getindex_fixed(_cell_nodes, cell_id, Val(4))
-            _node_cells.values[ptrs[node_id]] = cell_id; ptrs[node_id] += 1
+            @inbounds _node_cells.values[ptrs[node_id]] = cell_id
+            @inbounds ptrs[node_id] += 1
         end
     end
 
