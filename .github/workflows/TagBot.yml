@@ -32,11 +32,21 @@ jobs:
             exit 0
           fi
           VERSION="${TAG#v}"
-          NOTES=$(awk "/^## \\[$VERSION\\]/{flag=1;next}/^## \\[/{flag=0}flag" CHANGELOG.md | sed '/./,$!d' | sed -n ':a;N;$!ba;s/\n*$//')
+          NOTES=$(awk "/^## \\[$VERSION\\]/{flag=1;next}/^## \\[/{flag=0}flag" CHANGELOG.md | sed '/./,$!d' | sed -n ':a;N;$!ba;s/\n*$//;p')
           if [ -n "$NOTES" ]; then
             EXISTING=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q '.body' 2>/dev/null || echo "")
             if [ -n "$EXISTING" ]; then
-              COMBINED="${NOTES}"$'\n\n---\n\n'"${EXISTING}"
+              # Extract title (first non-empty line, e.g. "ManifoldMeshes v0.5.0")
+              TITLE=$(printf '%s\n' "$EXISTING" | awk 'NF{print; exit}')
+              # Extract body: everything after the first non-empty line
+              BODY=$(printf '%s\n' "$EXISTING" | awk 'found{print; next} NF{found=1}')
+              # Strip registrator release-notes summary from body
+              CLEANED=$(printf '%s\n' "$BODY" | sed '/^[[:space:]]*See CHANGELOG/d; /^[[:space:]]*Release notes:/d' | sed '/./,$!d')
+              if [ -n "$CLEANED" ]; then
+                COMBINED="${TITLE}"$'\n\n'"${NOTES}"$'\n\n---\n\n'"${CLEANED}"
+              else
+                COMBINED="${TITLE}"$'\n\n'"${NOTES}"
+              fi
               gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "${COMBINED}"
             fi
           fi
