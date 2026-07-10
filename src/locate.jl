@@ -101,7 +101,9 @@ Bilinear interpolation weights for `(lat, lon)` within `cell_id`.
 
 Returns `(nodes, weights)` where `nodes` matches `cell_nodes(g, cell_id)` in
 order and `weights` is the NodeLoc bilinear weight per node. Both are
-`NTuple{4}` (zero allocation). The point is assumed to be inside `cell_id`.
+`NTuple{4}` (no allocation for the structured grids LatLon/CubedSphere/ReducedGaussian;
+HEALPix allocates internally in `_cell_local_coords`). The point is assumed to be
+inside `cell_id`.
 """
 function interpolation_weights(g::AbstractManifoldMesh, cell_id::Int, lat::Real, lon::Real)
     nodes = cell_nodes(g, cell_id)

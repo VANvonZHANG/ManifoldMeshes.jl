@@ -123,6 +123,21 @@ end
     @test all(>(0), w)
 end
 
+@testset "CubedSphere interpolation_weights corner reproduction" begin
+    g = CubedSphereGrid(n = 2)
+    cid = 1
+    nodes = cell_nodes(g, cid)
+    for (k, nid) in enumerate(nodes)
+        p = node_coordinates(g, nid)
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(p)
+        cid_back = locate_cell(g, lat, lon)   # may differ at shared corners; if so, skip
+        cid_back == cid || continue
+        ns, w = interpolation_weights(g, cid, lat, lon)
+        # weight k should be ~1, others ~0
+        @test w[k] ≈ 1.0 atol = 1e-9
+    end
+end
+
 using ManifoldMeshes: HEALPixGrid
 
 @testset "HEALPix locate_cell (nested)" begin
@@ -190,6 +205,8 @@ end
             lat, lon = ManifoldMeshes._cartesian_to_latlon(p)
             @test locate_cell(g, SVector{3}(p)) == locate_cell(g, lat, lon)
         end
+        # negative-longitude wrap: loc(-360+lon) must equal loc(lon)
+        @test locate_cell(g, 10.0, 123.0) == locate_cell(g, 10.0, 123.0 - 360.0)
     end
 end
 
