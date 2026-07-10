@@ -17,8 +17,8 @@ using Test
 end
 
 @testset "coordinate round-trip" begin
-    for (lat, lon) in
-        [(0.0, 0.0), (45.0, 90.0), (-30.0, 200.0), (89.9, -175.0), (0.0, 359.9)]
+    for (lat,
+        lon) in [(0.0, 0.0), (45.0, 90.0), (-30.0, 200.0), (89.9, -175.0), (0.0, 359.9)]
         p = ManifoldMeshes._latlon_to_cartesian(lat, lon, 1.0)
         lat2, lon2 = ManifoldMeshes._cartesian_to_latlon(p)
         @test lat2 ≈ lat atol = 1e-9
@@ -115,6 +115,37 @@ end
 @testset "CubedSphere interpolation_weights" begin
     g = CubedSphereGrid(n = 2)
     cid = 1
+    nodes,
+    w = interpolation_weights(g, cid,
+        ManifoldMeshes._cartesian_to_latlon(cell_centroid(g, cid))...)
+    @test nodes == cell_nodes(g, cid)
+    @test sum(w) ≈ 1.0
+    @test all(>(0), w)
+end
+
+using ManifoldMeshes: HEALPixGrid
+
+@testset "HEALPix locate_cell (nested)" begin
+    g = HEALPixGrid(nside = 4, ordering = :nested)
+    for cid in [1, 12 * 16 ÷ 2, 12 * 16]
+        c = cell_centroid(g, cid)
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(c)
+        @test locate_cell(g, lat, lon) == cid
+    end
+end
+
+@testset "HEALPix locate_cell (ring)" begin
+    g = HEALPixGrid(nside = 4, ordering = :ring)
+    for cid in [1, 12 * 16 ÷ 2, 12 * 16]
+        c = cell_centroid(g, cid)
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(c)
+        @test locate_cell(g, lat, lon) == cid
+    end
+end
+
+@testset "HEALPix interpolation_weights" begin
+    g = HEALPixGrid(nside = 2, ordering = :nested)
+    cid = 5
     nodes,
     w = interpolation_weights(g, cid,
         ManifoldMeshes._cartesian_to_latlon(cell_centroid(g, cid))...)

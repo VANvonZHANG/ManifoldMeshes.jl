@@ -793,3 +793,194 @@ end
 
 boundary_nodes(g::HEALPixGrid, marker) = Int[]
 boundary_edges(g::HEALPixGrid, marker) = Int[]
+
+# -- Point location --
+
+"""
+    _nested_to_ring(nside, nested_idx) -> Int
+
+Convert a 0-indexed nested cell index to a 0-indexed ring cell index.
+Extracted from the conversion logic in `_nested_to_ang`.
+"""
+function _nested_to_ring(nside::Int, nested_idx::Int)
+    n_cells = 12 * nside * nside
+    @assert 0 <= nested_idx < n_cells
+
+    npface = nside * nside
+    face = div(nested_idx, npface)  # base pixel (0-11)
+    ipf = mod(nested_idx, npface)   # index within face
+
+    ix, iy = _morton_decode(ipf)
+
+    jrll_arr = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4]
+    jpll_arr = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7]
+
+    jr = jrll_arr[face + 1] * nside - ix - iy - 1
+    nl4 = 4 * nside
+    if jr < nside
+        nr = jr
+        n_before = 2 * nr * (nr - 1)
+        kshift = 0
+    elseif jr > 3 * nside
+        nr = nl4 - jr
+        n_before = n_cells - 2 * (nr + 1) * nr
+        kshift = 0
+    else
+        nr = nside
+        n_before = 2 * nside * (nside - 1) + (jr - nside) * nl4
+        kshift = mod(jr - nside, 2)
+    end
+
+    jp = div(jpll_arr[face + 1] * nr + ix - iy + 1 + kshift, 2)
+    if jp > nl4
+        jp -= nl4
+    end
+    if jp < 1
+        jp += nl4
+    end
+
+    return n_before + jp - 1  # 0-indexed ring cell ID
+end
+
+"""
+    _ring_to_nested(nside, ipring) -> Int
+
+Convert a 0-indexed ring cell index to a 0-indexed nested cell index.
+Builds the inverse of `_nested_to_ring` via a precomputed lookup table.
+"""
+function _ring_to_nested(nside::Int, ipring::Int)
+    n_cells = 12 * nside * nside
+    @assert 0 <= ipring < n_cells
+    # Build inverse permutation: inv[nested_0idx] = ipring_0idx
+    inv_perm = Vector{Int}(undef, n_cells)
+    for nested_idx in 0:(n_cells - 1)
+        inv_perm[_nested_to_ring(nside, nested_idx) + 1] = nested_idx
+    end
+    return inv_perm[ipring + 1]
+end
+
+"""
+    _ang2pix_ring(nside, theta, phi) -> Int
+
+0-indexed ring pixel index containing direction (theta, phi).
+Inverse of `_ring_to_ang`, matching this library's forward map convention
+(Górski et al. 2005, adapted for uniform `phi = 2π(i+0.5)/n` offset).
+`theta` is colatitude, `phi` longitude, both radians.
+
+Key difference from the canonical C `ang2pix_ring`: our `_ring_to_ang` uses
+`phi = 2π(i+0.5)/n_in_ring` for ALL rings (no equatorial ring-parity shift),
+and classifies ring `nside` as north polar (not equatorial). The zone
+threshold is therefore `z_nbound = (2*nside-1)/(3*nside)`, not `2/3`.
+"""
+function _ang2pix_ring(nside::Int, theta::Float64, phi::Float64)
+    z = cos(theta)
+    phi = mod(phi, 2π)
+    z_nbound = (2 * nside - 1) / (3 * nside)
+    npix = 12 * nside * nside
+
+    if z > z_nbound
+        # North polar cap: rings 1..nside (1-indexed)
+        # z_r = 1 - r²/(3nside²)  →  r = nside*sqrt(3*(1-z))
+        r = floor(Int, nside * sqrt(3.0 * (1.0 - z)) + 0.5)
+        r = clamp(r, 1, nside)
+        n_in_ring = 4 * r
+        i = mod(floor(Int, phi / (2π) * n_in_ring), n_in_ring)
+        n_before = 2 * r * (r - 1)
+        return n_before + i
+    elseif z < -z_nbound
+        # South polar cap: j = 1..nside (1-indexed from south pole)
+        j = floor(Int, nside * sqrt(3.0 * (1.0 + z)) + 0.5)
+        j = clamp(j, 1, nside)
+        n_in_ring = 4 * j
+        i = mod(floor(Int, phi / (2π) * n_in_ring), n_in_ring)
+        n_before = npix - 2 * j * (j + 1)
+        return n_before + i
+    else
+        # Equatorial belt: rings nside+1..3*nside (1-indexed absolute)
+        # z_r = (4nside - 2r)/(3nside)  →  r = nside*(4-3z)/2
+        r = floor(Int, nside * (4.0 - 3.0 * z) / 2.0 + 0.5)
+        r = clamp(r, nside + 1, 3 * nside)
+        n_in_ring = 4 * nside
+        i = mod(floor(Int, phi / (2π) * n_in_ring), n_in_ring)
+        ncap = 2 * nside * (nside + 1)   # north cap has nside rings
+        n_before = ncap + (r - nside - 1) * n_in_ring
+        return n_before + i
+    end
+end
+
+@inline function _locate_cell(g::HEALPixGrid, lat::Real, lon::Real)
+    -90 <= lat <= 90 || throw(ArgumentError("lat $lat out of [-90, 90]"))
+    theta = π / 2 - deg2rad(Float64(lat))     # colatitude
+    phi = deg2rad(mod(Float64(lon), 360.0))
+    ipring = _ang2pix_ring(g.nside, theta, phi)   # 0-indexed
+    if g.ordering === :ring
+        return ipring + 1
+    else  # :nested
+        return _ring_to_nested(g.nside, ipring) + 1
+    end
+end
+
+"""
+    _cell_local_coords(g::HEALPixGrid, cell_id, lat, lon) -> (s, t)
+
+Local coordinates (s, t) in [0,1]² of (lat, lon) within `cell_id`.
+HEALPix cells are not axis-aligned in (theta, phi), so a planar bilinear
+solve on the 4 corner nodes is used (gnomonic projection + 2D Newton).
+"""
+function _cell_local_coords(g::HEALPixGrid, cell_id::Int, lat::Real, lon::Real)
+    theta = π / 2 - deg2rad(Float64(lat))
+    phi = deg2rad(mod(Float64(lon), 360.0))
+    return _healpix_local_via_corners(g, cell_id, theta, phi)
+end
+
+"""
+    _healpix_local_via_corners(g, cell_id, theta, phi) -> (s, t)
+
+Solve for (s,t) such that the planar bilinear blend of the 4 corner nodes
+(in a gnomonic projection about the cell centroid) reproduces the query point.
+"""
+function _healpix_local_via_corners(g::HEALPixGrid, cell_id::Int, theta::Float64,
+        phi::Float64)
+    nids = cell_nodes(g, cell_id)
+    c = cell_centroid(g, cell_id)
+    # tangent basis at centroid
+    north = SVector(-c[1] * c[3], -c[2] * c[3], c[1]^2 + c[2]^2)
+    north = north / norm(north)
+    east = SVector(-c[2], c[1], 0.0)
+    east = east / norm(east)
+    function proj(p)
+        d = p - dot(p, c) * c
+        return (dot(d, east), dot(d, north))
+    end
+    sθ, cθ = sincos(theta)
+    sφ, cφ = sincos(phi)
+    q_dir = SVector{3, Float64}(sθ * cφ, sθ * sφ, cθ)
+    q = proj(q_dir)
+    pSW = proj(node_coordinates(g, nids[1]))
+    pSE = proj(node_coordinates(g, nids[2]))
+    pNE = proj(node_coordinates(g, nids[3]))
+    pNW = proj(node_coordinates(g, nids[4]))
+    # Bilinear solve: q = (1-s)(1-t)*pSW + s*(1-t)*pSE + s*t*pNE + (1-s)*t*pNW
+    # 2D Newton iterations (planar, well-conditioned for small cells)
+    s, t = 0.5, 0.5
+    for _ in 1:5
+        e_u = (1 - s) * (1 - t) * pSW[1] + s * (1 - t) * pSE[1] +
+              s * t * pNE[1] + (1 - s) * t * pNW[1] - q[1]
+        e_v = (1 - s) * (1 - t) * pSW[2] + s * (1 - t) * pSE[2] +
+              s * t * pNE[2] + (1 - s) * t * pNW[2] - q[2]
+        deds = -(1 - t) * pSW[1] + (1 - t) * pSE[1] +
+               t * pNE[1] - t * pNW[1]
+        dedt = -(1 - s) * pSW[1] - s * pSE[1] +
+               s * pNE[1] + (1 - s) * pNW[1]
+        deds_v = -(1 - t) * pSW[2] + (1 - t) * pSE[2] +
+                 t * pNE[2] - t * pNW[2]
+        dedt_v = -(1 - s) * pSW[2] - s * pSE[2] +
+                 s * pNE[2] + (1 - s) * pNW[2]
+        det = deds * dedt_v - deds_v * dedt
+        s -= (e_u * dedt_v - e_v * dedt) / det
+        t -= (deds * e_v - deds_v * e_u) / det
+    end
+    return (s, t)
+end
+
+locate_cell(g::HEALPixGrid, lat::Real, lon::Real) = _locate_cell(g, lat, lon)
