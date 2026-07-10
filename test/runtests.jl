@@ -25,4 +25,5 @@ end
     include("test_csr.jl")
     include("test_batch_queries.jl")
     include("test_node_cells.jl")
+    include("test_locate.jl")
 end
