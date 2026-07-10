@@ -122,3 +122,26 @@ end
     @test sum(w) ≈ 1.0
     @test all(>(0), w)
 end
+
+using ManifoldMeshes: ReducedGaussianGrid
+
+@testset "ReducedGaussian locate_cell" begin
+    g = ReducedGaussianGrid(nlat = 8)
+    for cid in [1, num_cells(g) ÷ 2, num_cells(g)]
+        c = cell_centroid(g, cid)
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(c)
+        @test locate_cell(g, lat, lon) == cid
+    end
+    @test_throws ArgumentError locate_cell(g, 90.1, 0.0)
+end
+
+@testset "ReducedGaussian interpolation_weights" begin
+    g = ReducedGaussianGrid(nlat = 6)
+    cid = num_cells(g) ÷ 3
+    nodes,
+    w = interpolation_weights(g, cid,
+        ManifoldMeshes._cartesian_to_latlon(cell_centroid(g, cid))...)
+    @test nodes == cell_nodes(g, cid)
+    @test sum(w) ≈ 1.0
+    @test all(>(0), w)
+end

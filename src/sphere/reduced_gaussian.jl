@@ -63,6 +63,8 @@ struct ReducedGaussianGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     R::Float64
     lat_points::Vector{Float64}     # Gaussian latitudes in radians
     lon_counts::Vector{Int}         # Number of longitude cells per latitude band
+    band_cell_offsets::Vector{Int}  # cumulative cell count: band_cell_offsets[j] = cells before band j (length nlat+1)
+    node_lat_points::Vector{Float64} # node latitude circle boundaries, radians (length nlat+1)
     nodes::Vector{SVector{3, Float64}}
     cell_volumes::Vector{Float64}
     cell_centroids::Vector{SVector{3, Float64}}
@@ -122,6 +124,14 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
 
     # Octahedral lon counts per latitude circle
     lon_counts = _octahedral_lon_counts(nlat)
+
+    # Per-band cell count and cumulative offset, for O(1) locate.
+    band_ncells = [max(lon_counts[j], lon_counts[j + 1]) for j in 1:nlat]
+    band_cell_offsets = Vector{Int}(undef, nlat + 1)
+    band_cell_offsets[1] = 0
+    for j in 1:nlat
+        band_cell_offsets[j + 1] = band_cell_offsets[j] + band_ncells[j]
+    end
 
     # Build nodes on each latitude circle
     nodes = SVector{3, Float64}[]
@@ -363,7 +373,7 @@ function ReducedGaussianGrid(; nlat::Int, R::Float64 = 1.0)
     end
 
     return ReducedGaussianGrid{typeof(M)}(
-        M, nlat, R, lat_points, lon_counts, nodes,
+        M, nlat, R, lat_points, lon_counts, band_cell_offsets, lat_points, nodes,
         cell_volumes, cell_centroids, _cell_nodes,
         _cell_edges, _edge_nodes, _cell_cells, _edge_cells, _node_edges, _node_cells,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing))
@@ -490,3 +500,32 @@ end
 
 boundary_nodes(g::ReducedGaussianGrid, marker) = Int[]
 boundary_edges(g::ReducedGaussianGrid, marker) = Int[]
+
+# -- Point location --
+
+@inline function _locate_cell(g::ReducedGaussianGrid, lat::Real, lon::Real)
+    -90 <= lat <= 90 || throw(ArgumentError("lat $lat out of [-90, 90]"))
+    lat_rad = deg2rad(Float64(lat))
+    lon = mod(Float64(lon), 360.0)
+    j = clamp(searchsortedlast(g.node_lat_points, lat_rad), 1, g.nlat)
+    ncells_j = g.band_cell_offsets[j + 1] - g.band_cell_offsets[j]
+    k = clamp(floor(Int, lon / 360.0 * ncells_j) + 1, 1, ncells_j)
+    return g.band_cell_offsets[j] + k
+end
+
+@inline function _cell_local_coords(g::ReducedGaussianGrid, cell_id::Int, lat::Real, lon::Real)
+    # find band j containing cell_id
+    j = 1
+    while j < g.nlat && g.band_cell_offsets[j + 1] < cell_id
+        j += 1
+    end
+    ncells_j = g.band_cell_offsets[j + 1] - g.band_cell_offsets[j]
+    k = cell_id - g.band_cell_offsets[j]
+    lat_rad = deg2rad(Float64(lat))
+    lon = mod(Float64(lon), 360.0)
+    s = (lat_rad - g.node_lat_points[j]) / (g.node_lat_points[j + 1] - g.node_lat_points[j])
+    t = lon / 360.0 * ncells_j - (k - 1)
+    return (s, t)
+end
+
+locate_cell(g::ReducedGaussianGrid, lat::Real, lon::Real) = _locate_cell(g, lat, lon)
