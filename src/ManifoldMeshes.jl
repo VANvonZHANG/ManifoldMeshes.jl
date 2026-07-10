@@ -9,6 +9,7 @@ using CairoMakie
 
 include("traits.jl")
 include("interface.jl")
+include("locate.jl")
 include("dual.jl")
 include("csr.jl")
 
@@ -22,6 +23,7 @@ export AbstractManifoldMesh, AbstractDualMesh, LatLonGrid, CubedSphereGrid,
 export manifold, num_cells, num_nodes, num_edges
 export node_coordinates, cell_volume, cell_centroid
 export cell_nodes, cell_cells, node_cells, cell_edges
+export locate_cell, interpolation_weights
 export edge_length, edge_midpoint, edge_outward_normal
 export edge_cells, node_edges, edge_nodes
 export all_cell_volumes, all_node_coordinates, all_cell_centroids, all_edge_lengths
