@@ -29,3 +29,56 @@ end
     lat2, lon2 = ManifoldMeshes._cartesian_to_latlon(p)
     @test lat2 ≈ 90.0 atol = 1e-9
 end
+
+using ManifoldMeshes: LatLonGrid, num_cells, cell_nodes, cell_centroid,
+                      locate_cell, interpolation_weights
+
+@testset "LatLon locate_cell" begin
+    g = LatLonGrid(lat_edges = [-90.0, -45.0, 0.0, 45.0, 90.0],
+        lon_edges = collect(0.0:90.0:360.0))   # nlat=4, nlon=4
+    # centroid round-trip
+    for cid in [1, 5, 8, 12, 16]
+        c = cell_centroid(g, cid)
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(c)
+        @test locate_cell(g, lat, lon) == cid
+    end
+    # pole lands in the polar cap band (topmost)
+    @test locate_cell(g, 90.0, 0.0) == 13   # (ilat=4, ilon=1): (4-1)*4+1
+    @test locate_cell(g, -90.0, 123.0) == 2 # south pole band, ilon=2 (lon=123 in [90,180))
+    # longitude wrap
+    @test locate_cell(g, 0.0, 0.0) == locate_cell(g, 0.0, 360.0)
+    @test locate_cell(g, 0.0, -0.5) == locate_cell(g, 0.0, 359.5)
+    # half-open: south edge belongs to the lower cell
+    @test locate_cell(g, -45.0, 0.0) == 5   # (ilat=2,ilon=1) -> lat_edges[2]=-45 inclusive
+    # bad latitude throws
+    @test_throws ArgumentError locate_cell(g, 90.1, 0.0)
+end
+
+@testset "LatLon interpolation_weights" begin
+    g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0],
+        lon_edges = collect(0.0:90.0:360.0))
+    cid = 1   # (ilat=1, ilon=1): lat [-90,0), lon [0,90)
+    nodes, w = interpolation_weights(g, cid, -45.0, 45.0)   # centroid -> (0.5,0.5)
+    @test nodes == cell_nodes(g, cid)
+    @test collect(w) ≈ [0.25, 0.25, 0.25, 0.25]
+    # corner SW: (s,t)=(0,0)
+    nodes, w = interpolation_weights(g, cid, -90.0, 0.0)
+    @test collect(w) ≈ [1.0, 0.0, 0.0, 0.0]
+    # reproduces a known bilinear function f(s,t) = 2 + 3s + 5t + 7s*t.
+    # cell_nodes ordering is (SW, SE, NE, NW) -> corner (s,t) ((0,0),(1,0),(1,1),(0,1))
+    # -> values (2, 5, 17, 7).
+    f(s, t) = 2 + 3s + 5t + 7s * t
+    corner_vals = (f(0, 0), f(1, 0), f(1, 1), f(0, 1))
+    for (s, t) in [(0.25, 0.5), (0.1, 0.9), (0.7, 0.3), (0.5, 0.5)]
+        lat = -90.0 + 90.0 * s      # band [-90,0): s in [0,1]
+        lon = 90.0 * t              # band [0,90)
+        nodes2, w2 = interpolation_weights(g, cid, lat, lon)
+        nmax = maximum(nodes2)
+        field = zeros(nmax)
+        for (nid, v) in zip(nodes2, corner_vals)
+            field[nid] = v
+        end
+        gathered = sum(w2 .* field[collect(nodes2)])
+        @test gathered ≈ f(s, t)
+    end
+end

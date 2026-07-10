@@ -485,3 +485,27 @@ end
 
 boundary_nodes(g::LatLonGrid, marker) = Int[]
 boundary_edges(g::LatLonGrid, marker) = Int[]
+
+# -- Point location --
+
+@inline function _locate_cell(g::LatLonGrid, lat::Real, lon::Real)
+    -90 <= lat <= 90 ||
+        throw(ArgumentError("lat $lat out of [-90, 90]"))
+    lon = mod(Float64(lon), 360.0)
+    ilat = clamp(searchsortedlast(g.lat_edges, Float64(lat)), 1, g.nlat)
+    ilon = clamp(searchsortedlast(g.lon_edges, lon), 1, g.nlon)
+    return (ilat - 1) * g.nlon + ilon
+end
+
+@inline function _cell_local_coords(g::LatLonGrid, cell_id::Int, lat::Real, lon::Real)
+    ilat = div(cell_id - 1, g.nlon) + 1
+    ilon = rem(cell_id - 1, g.nlon) + 1
+    lat = Float64(lat)
+    lon = mod(Float64(lon), 360.0)
+    s = (lat - g.lat_edges[ilat]) / (g.lat_edges[ilat + 1] - g.lat_edges[ilat])
+    t = (lon - g.lon_edges[ilon]) / (g.lon_edges[ilon + 1] - g.lon_edges[ilon])
+    return (s, t)
+end
+
+# Resolve the (lat, lon) primary dispatch to the per-grid method.
+locate_cell(g::LatLonGrid, lat::Real, lon::Real) = _locate_cell(g, lat, lon)
