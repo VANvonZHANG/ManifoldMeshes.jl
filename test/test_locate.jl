@@ -82,3 +82,43 @@ end
         @test gathered ≈ f(s, t)
     end
 end
+
+using ManifoldMeshes: CubedSphereGrid
+
+@testset "CubedSphere locate_cell" begin
+    g = CubedSphereGrid(n = 4)
+    # centroid round-trip
+    for cid in [1, 6 * 16 ÷ 2, 6 * 16]
+        c = cell_centroid(g, cid)
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(c)
+        @test locate_cell(g, lat, lon) == cid
+    end
+    # rotated grid: locate in the rotated frame still works (centroid round-trip)
+    rot = SMatrix{3, 3}(0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+    gr = CubedSphereGrid(n = 3, rotation = rot)
+    for cid in [1, 3 * 9 ÷ 2, 6 * 9]
+        c = cell_centroid(gr, cid)
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(c)
+        @test locate_cell(gr, lat, lon) == cid
+    end
+    # node round-trip: interior nodes lie in a cell that has them as a corner.
+    # Face-boundary nodes are ambiguous (non-deduplicated design: same physical
+    # point has different IDs per face), so test strictly-interior nodes.
+    for nid in [7, 69, 144]
+        p = node_coordinates(g, nid)
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(p)
+        cid = locate_cell(g, lat, lon)
+        @test nid ∈ cell_nodes(g, cid)
+    end
+end
+
+@testset "CubedSphere interpolation_weights" begin
+    g = CubedSphereGrid(n = 2)
+    cid = 1
+    nodes,
+    w = interpolation_weights(g, cid,
+        ManifoldMeshes._cartesian_to_latlon(cell_centroid(g, cid))...)
+    @test nodes == cell_nodes(g, cid)
+    @test sum(w) ≈ 1.0
+    @test all(>(0), w)
+end

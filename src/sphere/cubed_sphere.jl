@@ -513,3 +513,66 @@ function cell_local_2d(g::CubedSphereGrid, cell_id::Int)
     i = rem(local_id - 1, n) + 1
     return (i, j)
 end
+
+# -- Point location --
+
+# Inverse of _gnomonic_point: given a unit point p on the given face, return (s, t).
+# Derived from the forward table in _gnomonic_point (lines 311-328).
+# Face normals: 1:+Z, 2:-Z, 3:+Y, 4:-Y, 5:+X, 6:-X.
+@inline function _cubed_sphere_face_st(face::Int, p::SVector{3, Float64})
+    x, y, z = p[1], p[2], p[3]
+    if face == 1       # +Z, v=(s,t,1)
+        return (x / z, y / z)
+    elseif face == 2   # -Z, v=(-s,t,-1)
+        return (x / z, -y / z)
+    elseif face == 3   # +Y, v=(s,1,-t)
+        return (x / y, -z / y)
+    elseif face == 4   # -Y, v=(s,-1,t)
+        return (-x / y, -z / y)
+    elseif face == 5   # +X, v=(1,t,-s)
+        return (-z / x, y / x)
+    else               # face == 6, -X, v=(-1,t,s)
+        return (-z / x, -y / x)
+    end
+end
+
+# Determine which face a (face-local) point belongs to: the axis of largest |component|.
+@inline function _cubed_sphere_face(p::SVector{3, Float64})
+    ax, ay, az = abs(p[1]), abs(p[2]), abs(p[3])
+    if az >= ay && az >= ax
+        return p[3] >= 0 ? 1 : 2
+    elseif ay >= ax
+        return p[2] >= 0 ? 3 : 4
+    else
+        return p[1] >= 0 ? 5 : 6
+    end
+end
+
+@inline function _locate_cell(g::CubedSphereGrid, lat::Real, lon::Real)
+    -90 <= lat <= 90 || throw(ArgumentError("lat $lat out of [-90, 90]"))
+    # Query point in the grid's world frame; un-rotate into face-local frame.
+    u = ManifoldMeshes._latlon_to_cartesian(lat, lon, 1.0)
+    p = transpose(g.rotation) * u
+    face = _cubed_sphere_face(p)
+    s, t = _cubed_sphere_face_st(face, p)
+    n = g.n
+    i = clamp(floor(Int, (s + 1) / 2 * n) + 1, 1, n)
+    j = clamp(floor(Int, (t + 1) / 2 * n) + 1, 1, n)
+    return (face - 1) * n * n + (j - 1) * n + i
+end
+
+@inline function _cell_local_coords(g::CubedSphereGrid, cell_id::Int, lat::Real, lon::Real)
+    n = g.n
+    face = div(cell_id - 1, n * n) + 1
+    local_id = rem(cell_id - 1, n * n) + 1
+    j = div(local_id - 1, n) + 1
+    i = rem(local_id - 1, n) + 1
+    u = ManifoldMeshes._latlon_to_cartesian(lat, lon, 1.0)
+    p = transpose(g.rotation) * u
+    s, t = _cubed_sphere_face_st(face, p)
+    s_lo = -1.0 + 2.0 * (i - 1) / n
+    t_lo = -1.0 + 2.0 * (j - 1) / n
+    return ((s - s_lo) / (2.0 / n), (t - t_lo) / (2.0 / n))
+end
+
+locate_cell(g::CubedSphereGrid, lat::Real, lon::Real) = _locate_cell(g, lat, lon)
