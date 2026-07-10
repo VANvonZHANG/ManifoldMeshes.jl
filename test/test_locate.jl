@@ -176,3 +176,28 @@ end
     @test sum(w) ≈ 1.0
     @test all(>(0), w)
 end
+
+@testset "3D Cartesian overload parity" begin
+    grids = [
+        LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = collect(0.0:120.0:360.0)),
+        CubedSphereGrid(n = 3),
+        ReducedGaussianGrid(nlat = 6),
+        HEALPixGrid(nside = 4, ordering = :nested)
+    ]
+    for g in grids
+        for cid in [1, num_cells(g) ÷ 2, num_cells(g)]
+            p = cell_centroid(g, cid)
+            lat, lon = ManifoldMeshes._cartesian_to_latlon(p)
+            @test locate_cell(g, SVector{3}(p)) == locate_cell(g, lat, lon)
+        end
+    end
+end
+
+@testset "determinism (half-open tie-break)" begin
+    g = LatLonGrid(lat_edges = [-90.0, 0.0, 90.0], lon_edges = collect(0.0:90.0:360.0))
+    # a point ON a shared edge returns the same cell every call
+    # lat=0 -> ilat=2 (half-open [0,90)); lon=90 -> ilon=2; cell=(2-1)*4+2=6
+    for _ in 1:5
+        @test locate_cell(g, 0.0, 90.0) == 6
+    end
+end

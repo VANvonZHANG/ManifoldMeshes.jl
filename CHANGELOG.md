@@ -13,12 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Edge topology**: `edge_cells`, `node_edges`, `edge_nodes` interface functions implemented for LatLonGrid, CubedSphereGrid, ReducedGaussianGrid, and HEALPixGrid
 - **Batch query API**: Zero-copy batch functions (`all_cell_centroids`, `all_edge_lengths`, `all_cell_volumes`) returning `Tuple`-of-`SVector` for zero GC pressure
 - **`node_cells` precomputation**: Inverse mapping (node→cells) precomputed at construction time for all grid types with `@inbounds` optimizations
+- **Point location**: `locate_cell(g, lat, lon)` and 3D `locate_cell(g, p::SVector{3})` across LatLonGrid, CubedSphereGrid, ReducedGaussianGrid, HEALPixGrid
+- **Interpolation weights**: `interpolation_weights(g, cell_id, lat, lon)` returning self-contained `(nodes, weights)` tuples for NodeLoc bilinear interpolation
+- **Coordinate helpers**: internal `_latlon_to_cartesian` / `_cartesian_to_latlon` (shared with future `node_lonlat` UGRID accessor)
 
 ### Changed
 
 - Migrated all 4 grid types to `CSRMapping`-based topology storage (LatLonGrid, CubedSphereGrid, ReducedGaussianGrid, HEALPixGrid)
 - Extracted `_permute_uniform_csr` shared helper for reuse across uniform-cell grid types
 - CSR accessors now return `SubArray` via `@view` for zero-copy semantics
+- ReducedGaussianGrid: added `band_cell_offsets` and `node_lat_points` fields for O(1) point location (backwards-compatible; constructor-grown)
 
 ### Fixed
 

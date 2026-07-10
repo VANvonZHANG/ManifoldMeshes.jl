@@ -38,3 +38,25 @@ end
         @test edge_mp_alloc < 10_000
     end
 end
+
+@testset "locate_cell performance smoke" begin
+    using ManifoldMeshes: locate_cell
+    grids = [
+        LatLonGrid(lat_edges = collect(-90.0:5.0:90.0), lon_edges = collect(0.0:5.0:360.0)),
+        CubedSphereGrid(n = 16),
+        ReducedGaussianGrid(nlat = 40),
+        HEALPixGrid(nside = 16, ordering = :nested)
+    ]
+    for g in grids
+        # warm + time a batch; no hard threshold, guards against O(N) scans
+        lat, lon = 12.3, 45.6
+        for _ in 1:100
+            locate_cell(g, lat, lon)
+        end
+        t = @elapsed for _ in 1:10_000
+            locate_cell(g, lat, lon)
+        end
+        @test t < 0.05   # 10k calls < 50ms => ~5μs/call; HEALPix Newton may be higher
+        println("$(typeof(g).name): $(t * 100) μs/call")
+    end
+end
