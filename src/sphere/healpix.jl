@@ -18,6 +18,7 @@ struct HEALPixGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
     nodes::Vector{SVector{3, Float64}}
     cell_volumes::Vector{Float64}
     cell_centroids::Vector{SVector{3, Float64}}
+    _ring_to_nested_perm::Vector{Int}   # length 12*nside²; [ipring+1] = nested_idx (0-indexed)
     _cell_nodes::CSRMapping
     _cell_edges::CSRMapping
     _cell_cells::CSRMapping
@@ -106,51 +107,7 @@ Convert a 0-indexed nested cell index to 3D Cartesian coordinates on the unit sp
 Implements the standard HEALPix nested ordering geometry.
 """
 function _nested_to_ang(nside::Int, nested_idx::Int)
-    n_cells = 12 * nside * nside
-    @assert 0 <= nested_idx < n_cells
-
-    npface = nside * nside
-    face = div(nested_idx, npface)  # base pixel (0-11)
-    ipf = mod(nested_idx, npface)   # index within face
-
-    # Decode Morton index to (ix, iy) within the face
-    ix, iy = _morton_decode(ipf)
-
-    # Standard HEALPix nested-to-ring conversion (Gorski et al. 2005).
-    # Face layout: 0-3 = north polar, 4-7 = equatorial north, 8-11 = equatorial south + south polar.
-    # jrll/jpll arrays map each face to its ring and longitude offsets.
-    jrll_arr = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4]
-    jpll_arr = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7]
-
-    # jr is a 1-indexed pseudo-ring number from the north pole
-    jr = jrll_arr[face + 1] * nside - ix - iy - 1
-    nl4 = 4 * nside
-    if jr < nside
-        nr = jr
-        n_before = 2 * nr * (nr - 1)
-        kshift = 0
-    elseif jr > 3 * nside
-        nr = nl4 - jr
-        n_before = n_cells - 2 * (nr + 1) * nr
-        kshift = 0
-    else
-        nr = nside
-        n_before = 2 * nside * (nside - 1) + (jr - nside) * nl4
-        kshift = mod(jr - nside, 2)
-    end
-
-    jp = div(jpll_arr[face + 1] * nr + ix - iy + 1 + kshift, 2)
-    if jp > nl4
-        jp -= nl4
-    end
-    if jp < 1
-        jp += nl4
-    end
-
-    # ipring is 0-indexed ring cell ID
-    ipring = n_before + jp - 1
-
-    # Now convert ipring (0-indexed) to (theta, phi)
+    ipring = _nested_to_ring(nside, nested_idx)
     return _ring_to_ang(nside, ipring)
 end
 
@@ -221,45 +178,6 @@ function _ring_to_ang(nside::Int, ipring::Int)
     z = cos(theta)
 
     return SVector(x, y, z)
-end
-
-"""
-    _ring_to_nested_permutation(nside, ring_centers_flat)
-
-Compute the permutation mapping nested cell IDs to ring cell IDs.
-Returns `perm` where `perm[nested_id] = ring_id`.
-
-Uses the standard HEALPix nested-to-ring conversion to compute the mapping.
-"""
-function _ring_to_nested_permutation(nside::Int, ring_centers_flat::Vector{SVector{
-        3, Float64}})
-    n_cells = 12 * nside * nside
-    perm = Vector{Int}(undef, n_cells)
-    used = falses(n_cells)
-
-    for nested_idx in 0:(n_cells - 1)
-        # Compute the ring cell index for this nested cell
-        p_nested = _nested_to_ang(nside, nested_idx)
-
-        # Find the closest ring center
-        best_dist = Inf
-        best_ring = 0
-        for (rid, rc) in enumerate(ring_centers_flat)
-            d = norm(p_nested - rc)
-            if d < best_dist
-                best_dist = d
-                best_ring = rid
-            end
-        end
-
-        @assert best_ring > 0 "Failed to match nested cell $(nested_idx+1) to a ring cell"
-        @assert !used[best_ring] "Ring cell $best_ring already matched by nested $(nested_idx+1)"
-
-        perm[nested_idx + 1] = best_ring
-        used[best_ring] = true
-    end
-
-    return perm
 end
 
 # -- Internal: Bounds Checking --
@@ -616,16 +534,23 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
     end
 
     # --- Apply nested ordering permutation if requested ---
-    if ordering == :nested
-        # Flatten ring centers for permutation computation
-        ring_centers_flat = SVector{3, Float64}[]
-        for ring in 1:n_rings
-            append!(ring_centers_flat, ring_centers[ring])
-        end
-        perm = _ring_to_nested_permutation(nside, ring_centers_flat)
-        # perm[nested_id] = ring_id
+    # Build ring→nested permutation: _ring_to_nested_perm[ipring+1] = nested_idx (0-indexed)
+    ring_to_nested_perm = Vector{Int}(undef, n_cells)
+    for nested_idx in 0:(n_cells - 1)
+        ipring = _nested_to_ring(nside, nested_idx)
+        ring_to_nested_perm[ipring + 1] = nested_idx
+    end
 
-        # Build inverse permutation: inv_perm[ring_id] = nested_id
+    if ordering == :nested
+        # _ring_to_nested_perm[ipring+1] = nested_idx (0-indexed)
+        # Build nested→ring permutation: perm[nested_id] = ring_id (1-indexed)
+        perm = Vector{Int}(undef, n_cells)
+        for ipring in 0:(n_cells - 1)
+            nested_idx = ring_to_nested_perm[ipring + 1]
+            perm[nested_idx + 1] = ipring + 1   # 1-indexed ring_id
+        end
+
+        # Build inverse permutation: inv_perm[ring_id] = nested_id (1-indexed)
         inv_perm = Vector{Int}(undef, n_cells)
         for nested_id in 1:n_cells
             inv_perm[perm[nested_id]] = nested_id
@@ -661,11 +586,14 @@ function HEALPixGrid(; nside::Int, ordering::Symbol = :ring,
             end
         end
         _node_cells = _node_cells_perm
+    else
+        # :ring ordering — permutation not needed for locate, use empty vector
+        ring_to_nested_perm = Int[]
     end
 
     return HEALPixGrid{typeof(M)}(
         M, nside, R, ordering, nodes,
-        cell_volumes, cell_centroids, _cell_nodes,
+        cell_volumes, cell_centroids, ring_to_nested_perm, _cell_nodes,
         _cell_edges, _cell_cells, _edge_nodes,
         _edge_cells, _node_edges, _node_cells,
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing),
@@ -843,23 +771,6 @@ function _nested_to_ring(nside::Int, nested_idx::Int)
 end
 
 """
-    _ring_to_nested(nside, ipring) -> Int
-
-Convert a 0-indexed ring cell index to a 0-indexed nested cell index.
-Builds the inverse of `_nested_to_ring` via a precomputed lookup table.
-"""
-function _ring_to_nested(nside::Int, ipring::Int)
-    n_cells = 12 * nside * nside
-    @assert 0 <= ipring < n_cells
-    # Build inverse permutation: inv[nested_0idx] = ipring_0idx
-    inv_perm = Vector{Int}(undef, n_cells)
-    for nested_idx in 0:(n_cells - 1)
-        inv_perm[_nested_to_ring(nside, nested_idx) + 1] = nested_idx
-    end
-    return inv_perm[ipring + 1]
-end
-
-"""
     _ang2pix_ring(nside, theta, phi) -> Int
 
 0-indexed ring pixel index containing direction (theta, phi).
@@ -915,8 +826,8 @@ end
     ipring = _ang2pix_ring(g.nside, theta, phi)   # 0-indexed
     if g.ordering === :ring
         return ipring + 1
-    else  # :nested
-        return _ring_to_nested(g.nside, ipring) + 1
+    else  # :nested — O(1) lookup via cached permutation
+        return g._ring_to_nested_perm[ipring + 1] + 1
     end
 end
 

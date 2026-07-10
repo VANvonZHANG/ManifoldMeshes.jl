@@ -85,7 +85,8 @@ HEALPix Hierarchical Equal Area iso-Latitude Pixelization grid. Trait: `IsSemiGr
 **Morton/Z-order encoding:**
 - `_morton_encode(ix, iy)` / `_morton_decode(m)` — interleaved bit coordinates
 - `_nested_cell_center(nside, base, ix, iy)` — cell center coords in nested mode
-- `_ring_to_nested_permutation(nside)` — ring → nested permutation mapping
+- `_nested_to_ring(nside, nested_idx)` — nested→ring conversion (single source of truth)
+- `_ring_to_nested_perm` field — cached ring→nested permutation (O(1) locate for `:nested`)
 
 **Corner deduplication:** Shared corners between adjacent cells are merged to single node IDs at construction time
 
