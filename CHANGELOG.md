@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-10
+
 ### Added
 
 - **CSR topology storage** (`CSRMapping`): Compressed Sparse Row data structure for O(1) topology lookups, replacing O(N) linear scans across all 4 grid types
@@ -123,7 +125,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documenter.jl documentation site with API reference
 - GitHub Actions CI, CompatHelper, TagBot, and Dependabot automation
 
-[unreleased]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/releases/tag/v0.2.0
