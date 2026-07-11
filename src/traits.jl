@@ -92,6 +92,40 @@ struct MultiPatch{N} <: PatchStyle end
 PatchStyle(::Type{T}) where {T} = NoPatch()
 PatchStyle(m::T) where {T} = PatchStyle(T)
 
+# -- ProjectionStyle --
+
+"""
+    ProjectionStyle
+
+Abstract type for cubed-sphere projection classification.
+Concrete subtypes: `Gnomomic`, `Equiangular`.
+
+A projection changes cell geometry on the manifold, so it is represented as a
+type parameter on `CubedSphereGrid` (not a runtime field). By contrast, a
+variant that only changes numbering — e.g. HEALPix `:ring` vs `:nested`, where
+the cells are identical — stays a runtime `Symbol` field.
+"""
+abstract type ProjectionStyle end
+
+"""
+    Gnomomic <: ProjectionStyle
+
+Gnomonic (tangent-plane) cubed-sphere projection.
+"""
+struct Gnomomic <: ProjectionStyle end
+
+"""
+    Equiangular <: ProjectionStyle
+
+Equiangular cubed-sphere projection.
+"""
+struct Equiangular <: ProjectionStyle end
+
+function ProjectionStyle(::Type{T}) where {T}
+    error("$(T) does not have a ProjectionStyle (only CubedSphereGrid uses one)")
+end
+ProjectionStyle(m::T) where {T} = ProjectionStyle(T)
+
 # -- AbstractLocation --
 
 """

@@ -18,6 +18,7 @@ export TopologyStyle, IsGrid, IsSemiGrid, IsMesh, AbstractLocation, NodeLoc, Cel
        EdgeLoc
 export CellTypeStyle, IsUniform, IsMixed
 export PatchStyle, NoPatch, MultiPatch
+export ProjectionStyle, Gnomomic, Equiangular
 export AbstractManifoldMesh, AbstractDualMesh, LatLonGrid, CubedSphereGrid,
        ReducedGaussianGrid, HEALPixGrid, MixedCellTopology
 export manifold, num_cells, num_nodes, num_edges

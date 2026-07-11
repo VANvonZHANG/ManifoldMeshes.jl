@@ -1,13 +1,14 @@
 using StaticArrays: SMatrix
 
 """
-    CubedSphereGrid{M<:ManifoldsBase.AbstractManifold}
+    CubedSphereGrid{M, P<:ProjectionStyle}
 
 Cubed-sphere grid via gnomonic projection with 6 faces.
 Cells are uniform quads with `IsSemiGrid` topology and `MultiPatch` patch style.
 Nodes are merged across face boundaries for global connectivity.
 """
-struct CubedSphereGrid{M <: AbstractManifold} <: AbstractManifoldMesh{M}
+struct CubedSphereGrid{M <: AbstractManifold, P <: ProjectionStyle} <:
+       AbstractManifoldMesh{M}
     manifold::M
     n::Int
     R::Float64
@@ -65,6 +66,7 @@ function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
     n >= 1 || throw(ArgumentError("n must be >= 1, got $n"))
     projection in (:gnomonic, :equiangular) ||
         throw(ArgumentError("projection must be :gnomonic or :equiangular, got $projection"))
+    P = projection === :gnomonic ? Gnomomic : Equiangular
     R > 0 || throw(ArgumentError("R must be positive, got $R"))
     rotation = convert(SMatrix{3, 3, Float64, 9}, rotation)
 
@@ -290,7 +292,7 @@ function CubedSphereGrid(; n::Int, projection::Symbol = :gnomonic,
         end
     end
 
-    return CubedSphereGrid(
+    return CubedSphereGrid{typeof(M), P}(
         M, n, R, nodes, cell_volumes, cell_centroids,
         _cell_nodes, _cell_edges, _cell_cells,
         _edge_nodes, _edge_cells, _node_edges, _node_cells,
@@ -360,6 +362,7 @@ end
 TopologyStyle(::Type{<:CubedSphereGrid}) = IsGrid()
 CellTypeStyle(::Type{<:CubedSphereGrid}) = IsUniform{4}()
 PatchStyle(::Type{<:CubedSphereGrid}) = MultiPatch{6}()
+ProjectionStyle(::Type{<:CubedSphereGrid{<:Any, P}}) where {P <: ProjectionStyle} = P()
 
 has_dual(g::CubedSphereGrid) = g._dual[] !== nothing
 
@@ -516,9 +519,15 @@ end
 
 # -- Point location --
 
-# Inverse of _gnomonic_point: given a unit point p on the given face, return (s, t).
-# Derived from the forward table in _gnomonic_point (lines 311-328).
+# Face-plane inverse: given a unit point p on the given face, return (s, t).
+# Derived from the forward table in _gnomonic_point.
 # Face normals: 1:+Z, 2:-Z, 3:+Y, 4:-Y, 5:+X, 6:-X.
+# Projection-invariant: this returns the same (s, t) for gnomomic AND equiangular
+# grids, because both projections encode the same angular ratios and `normalize`
+# cancels in x/z, y/z. locate_cell / _cell_local_coords therefore call this single
+# function with no ProjectionStyle dispatch. The projection IS retained on the type
+# (see ProjectionStyle / §7 of the locate spec), but for forward-projection
+# consumers (UGRID node export, future remap), NOT for the locate inverse.
 @inline function _cubed_sphere_face_st(face::Int, p::SVector{3, Float64})
     x, y, z = p[1], p[2], p[3]
     if face == 1       # +Z, v=(s,t,1)
