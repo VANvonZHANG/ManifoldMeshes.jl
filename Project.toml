@@ -1,6 +1,6 @@
 name = "ManifoldMeshes"
 uuid = "d2a7aed9-80bb-46a9-9a56-e170a93cc177"
-version = "0.5.0"
+version = "0.6.0"
 
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
