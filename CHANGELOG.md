@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Cubed-sphere projection trait**: `ProjectionStyle` (`Gnomomic` / `Equiangular`) is now a type-level property of `CubedSphereGrid` (`CubedSphereGrid{M, P}`), replacing a constructor keyword that was previously discarded after building nodes. The two projections are now distinct sub-types. The locate inverse stays projection-invariant (single `_cubed_sphere_face_st`, no dispatch).
+
 ## [0.5.0] - 2026-07-10
 
 ### Added

@@ -218,3 +218,36 @@ end
         @test locate_cell(g, 0.0, 90.0) == 6
     end
 end
+
+@testset "CubedSphere equiangular projection parity" begin
+    # Regression guard (spec §7): the (s,t) locate inverse is projection-invariant.
+    # locate_cell and interpolation_weights must behave identically for both
+    # projections. If this fails, someone added projection-specific dispatch in
+    # _cubed_sphere_face_st — re-read spec §7 before changing.
+    # Spot-check cells spanning all 6 faces (n=4 -> 16 cells/face): a face-first
+    # and a face-center cell per face, plus the last cell. Face-center cells sit at
+    # interior (s,t) where projection curvature differs most, strengthening the
+    # guard beyond the face corners.
+    sample_cids(n) = vcat(
+        [1 + k * n * n for k in 0:5],                          # face-first cell of each face
+        [k * n * n + (n ÷ 2 - 1) * n + (n ÷ 2) for k in 0:5] # face-center cell of each face
+    )
+    for proj in (:gnomonic, :equiangular)
+        g = CubedSphereGrid(n = 4, projection = proj)
+        cids = vcat(sample_cids(g.n), num_cells(g))
+        # centroid round-trip: locate of each centroid returns the same cell
+        for cid in cids
+            c = cell_centroid(g, cid)
+            lat, lon = ManifoldMeshes._cartesian_to_latlon(c)
+            @test locate_cell(g, lat, lon) == cid
+        end
+        # interpolation_weights: partition-of-unity + node-order match
+        for cid in cids
+            c = cell_centroid(g, cid)
+            lat, lon = ManifoldMeshes._cartesian_to_latlon(c)
+            nodes, w = interpolation_weights(g, cid, lat, lon)
+            @test nodes == cell_nodes(g, cid)
+            @test sum(w) ≈ 1.0
+        end
+    end
+end

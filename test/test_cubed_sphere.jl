@@ -202,3 +202,17 @@ end
         @test all(c -> 1 <= c <= num_cells(g), cells)
     end
 end
+
+@testset "CubedSphereGrid projection trait" begin
+    gg = CubedSphereGrid(n = 2, projection = :gnomonic)
+    ge = CubedSphereGrid(n = 2, projection = :equiangular)
+    @test ProjectionStyle(gg) === Gnomomic()
+    @test ProjectionStyle(ge) === Equiangular()
+    # default projection is gnomonic
+    @test ProjectionStyle(CubedSphereGrid(n = 2)) === Gnomomic()
+    # the two projections are distinct concrete types
+    @test typeof(gg) !== typeof(ge)
+    # both still satisfy the existing structural traits
+    @test TopologyStyle(gg) === IsGrid()
+    @test PatchStyle(ge) === MultiPatch{6}()
+end
