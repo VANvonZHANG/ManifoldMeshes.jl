@@ -244,3 +244,66 @@ end
 
 boundary_nodes(g::UnstructuredMesh, marker) = Int[]
 boundary_edges(g::UnstructuredMesh, marker) = Int[]
+
+# -- Geometry --
+
+function cell_volume(g::UnstructuredMesh, cell_id::Int)
+    _check_cell_id(g, cell_id)
+    return g._cell_volumes[cell_id]
+end
+
+all_cell_volumes(g::UnstructuredMesh) = g._cell_volumes
+all_cell_centroids(g::UnstructuredMesh) = g._cell_centroids
+all_node_coordinates(g::UnstructuredMesh) = g.nodes
+
+function cell_centroid(g::UnstructuredMesh, cell_id::Int)
+    _check_cell_id(g, cell_id)
+    return g._cell_centroids[cell_id]
+end
+
+function _edge_endpoints(g::UnstructuredMesh, edge_id::Int)
+    n1, n2 = getindex_fixed(g._edge_nodes, edge_id, Val(2))
+    return (g.nodes[n1], g.nodes[n2])
+end
+
+function edge_length(g::UnstructuredMesh, edge_id::Int)
+    _check_edge_id(g, edge_id)
+    n1, n2 = _edge_endpoints(g, edge_id)
+    return Manifolds.distance(Sphere(2), normalize(n1), normalize(n2)) * g.R
+end
+
+function edge_midpoint(g::UnstructuredMesh, edge_id::Int)
+    _check_edge_id(g, edge_id)
+    n1, n2 = _edge_endpoints(g, edge_id)
+    u1, u2 = normalize(n1), normalize(n2)
+    if Manifolds.distance(Sphere(2), u1, u2) < 1e-14
+        return SVector{3, Float64}(n1)
+    end
+    return g.R * SVector{3, Float64}(Manifolds.mid_point(Sphere(2), u1, u2))
+end
+
+function edge_outward_normal(g::UnstructuredMesh, edge_id::Int, cell_id::Int)
+    _check_edge_id(g, edge_id)
+    _check_cell_id(g, cell_id)
+    n1, n2 = _edge_endpoints(g, edge_id)
+    u1 = normalize(SVector{3, Float64}(n1))
+    u2 = normalize(SVector{3, Float64}(n2))
+
+    # Guard: degenerate edge with coincident endpoints
+    if Manifolds.distance(Sphere(2), u1, u2) < 1e-14
+        return (base_point = SVector{3, Float64}(g.R * u1),
+            normal = zero(SVector{3, Float64}))
+    end
+
+    m = Manifolds.mid_point(Sphere(2), u1, u2)     # unit midpoint
+    gc_normal = cross(u1, u2)                      # great circle plane normal
+    tangent = normalize(cross(gc_normal, m))
+    c = normalize(SVector{3, Float64}(g._cell_centroids[cell_id]))
+    cell_side = sign(dot(gc_normal, c))
+
+    outward = cell_side * cross(tangent, m)
+    outward = Manifolds.project(Sphere(2), m, outward)
+
+    return (base_point = g.R * SVector{3, Float64}(m),
+        normal = SVector{3, Float64}(outward))
+end
