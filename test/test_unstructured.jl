@@ -165,3 +165,74 @@ end
     @test cell_volume(split_cube, 1) + cell_volume(split_cube, 2) ≈
           cell_volume(quad_cube, 1) rtol = 1e-12
 end
+
+using ManifoldMeshes: locate_cell
+
+@testset "UnstructuredMesh locate" begin
+    m = UnstructuredMesh(Sphere(2), cube_points(), CUBE_FACES)
+
+    # lazy index: built on first locate, not at construction
+    @test m._locate_index[] === nothing
+    # center of +y face (cell 3): direction (0, 1, 0) -> lat 0, lon 90
+    @test locate_cell(m, 0.0, 90.0) == 3
+    @test m._locate_index[] !== nothing
+
+    # shared-edge midpoint between cells 1 (+x) and 5 (+z): smallest id wins
+    q = normalize(normalize(cube_points()[1]) + normalize(cube_points()[4]))
+    lat, lon = ManifoldMeshes._cartesian_to_latlon(q)
+    @test locate_cell(m, lat, lon) == 1
+
+    # vertex 1 shared by cells 1, 3, 5: smallest id wins
+    lat, lon = ManifoldMeshes._cartesian_to_latlon(normalize(cube_points()[1]))
+    @test locate_cell(m, lat, lon) == 1
+
+    # lat out of range
+    @test_throws ArgumentError locate_cell(m, 91.0, 0.0)
+
+    # open mesh: +x face removed -> its center is outside
+    open_m = UnstructuredMesh(Sphere(2), cube_points(), CUBE_FACES[2:end, :])
+    @test locate_cell(open_m, 0.0, 90.0) == 2   # +y is sliced row 2
+    @test_throws ArgumentError locate_cell(open_m, 0.0, 0.0)
+
+    # mixed mesh: the split +x diagonal contains (1,0,0) -> smallest id (tri 1)
+    split_m = UnstructuredMesh(Sphere(2), cube_points(), CUBE_FACES_SPLIT;
+        fill_value = -1)
+    @test locate_cell(split_m, 0.0, 0.0) == 1
+    @test locate_cell(split_m, 0.0, 90.0) == 4   # +y is row 4 of the split table
+
+    # hexagon cell contains the pole
+    m6 = UnstructuredMesh(collect(0.0:60.0:300.0), fill(30.0, 6),
+        Matrix{Int}(reshape(1:6, 1, 6)); start_index = 1)
+    @test locate_cell(m6, 90.0, 0.0) == 1
+    @test_throws ArgumentError locate_cell(m6, -90.0, 0.0)   # south pole outside
+end
+
+@testset "locate k-NN expansion" begin
+    # Quarter-dome mesh: a big cell 0-120 lon x 0-80 lat, a right strip
+    # 120-130, and two top cells 80-90. All cells are convex (lon span
+    # < 180 deg — a wider quad would NOT be hemisphere-convex, and its
+    # corner-mean centroid wraps to the complementary strip).
+    lon = [0.0, 120.0, 130.0, 0.0, 120.0, 130.0, 90.0, 90.0, 90.0]
+    lat = [0.0, 0.0, 0.0, 80.0, 80.0, 80.0, 90.0, 90.0, 90.0]
+    fn = [1 2 5 4;                     # big: 0-120 x 0-80
+          2 3 6 5;                     # right strip: 120-130 x 0-80
+          4 5 8 7;                     # top over big (pole-coincident corners)
+          5 6 9 8]                     # top over right strip
+    m2 = UnstructuredMesh(lon, lat, fn; start_index = 1)
+    @test num_cells(m2) == 4
+    # (75, 110) is strictly inside the big cell (row 1); the top cells'
+    # centroids are ~9-12 deg away while the big cell's is ~55 deg, so k
+    # must double past the misses before the true container is tested.
+    @test locate_cell(m2, 75.0, 110.0) == 1
+end
+
+@testset "locate oracle vs LatLonGrid" begin
+    g = LatLonGrid(lat_edges = collect(range(-90.0, 90.0; length = 19)),
+        lon_edges = collect(range(0.0, 360.0; length = 37)))
+    m = unstructured_from_grid(g)
+    for c in 1:num_cells(g)
+        ctr = cell_centroid(g, c)                  # strictly interior to its cell
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(ctr)
+        @test locate_cell(m, lat, lon) == locate_cell(g, lat, lon) == c
+    end
+end

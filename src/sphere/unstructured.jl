@@ -307,3 +307,118 @@ function edge_outward_normal(g::UnstructuredMesh, edge_id::Int, cell_id::Int)
     return (base_point = g.R * SVector{3, Float64}(m),
         normal = SVector{3, Float64}(outward))
 end
+
+# -- Point location --
+#
+# Two-phase: (1) k-d tree over cell centroids (3D Euclidean — same coarse
+# semantics as UXarray's ball tree), (2) exact spherical
+# point-in-convex-polygon. The k-d tree lives on representation coordinates,
+# which is valid for sphere-like embeddings; periodic or curved
+# representations would need a per-manifold index (override door left open).
+
+function _locate_kdtree(g::UnstructuredMesh)
+    if g._locate_index[] === nothing
+        cents = reduce(hcat, g._cell_centroids)   # 3 x num_cells
+        g._locate_index[] = NearestNeighbors.KDTree(cents)
+    end
+    return g._locate_index[]
+end
+
+"""Sign of the side of `p` w.r.t. the great circle through unit vectors `n1, n2`.
+Values within 1e-12 of the plane count as on it (0.0) — FP robustness for
+boundary points reconstructed through lat/lon round-trips."""
+@inline function _gc_side(n1::SVector{3, Float64}, n2::SVector{3, Float64},
+        p::SVector{3, Float64})
+    d = dot(cross(n1, n2), p)
+    return abs(d) < 1e-12 ? 0.0 : sign(d)
+end
+
+function _cell_unit_corners(g::UnstructuredMesh, cell_id::Int)
+    ns = cell_nodes(g, cell_id)
+    K = length(ns)
+    return [normalize(SVector{3, Float64}(g.nodes[ns[k]])) for k in 1:K]
+end
+
+"""
+    _point_in_convex_poly(g, cell_id, q) -> Bool
+
+Exact spherical point-in-convex-polygon test for a cell of any arity. The
+orientation reference is the cell's own centroid side: for a convex cyclic
+polygon, `dot(cross(v_k, v_{k+1}), centroid)` has one sign for every edge; `q`
+is inside when each edge side matches it (0 counts as on-edge/inside).
+Degenerate edges (coincident corners, as in polar caps) impose no constraint
+and never fix the orientation.
+"""
+function _point_in_convex_poly(g::UnstructuredMesh, cell_id::Int, q::SVector{3, Float64})
+    v = _cell_unit_corners(g, cell_id)
+    K = length(v)
+    c = normalize(SVector{3, Float64}(g._cell_centroids[cell_id]))
+    orient = 0.0
+    for k in 1:K
+        n = cross(v[k], v[mod1(k + 1, K)])
+        norm(n) < 1e-12 && continue     # degenerate edge (coincident corners,
+        # e.g. polar caps): no half-space constraint
+        if orient == 0.0
+            orient = sign(dot(n, c))    # first non-degenerate edge fixes orientation
+        end
+        s = _gc_side(v[k], v[mod1(k + 1, K)], q)
+        (s == orient || s == 0) || return false
+    end
+    return true
+end
+
+"""
+    _incident_containers(g, cell_id, q) -> Int
+
+Smallest cell id among the cells containing `q`, given `q` lies on the
+boundary of `cell_id`: unions the cells across every edge and vertex of
+`cell_id` that `q` touches, then takes the minimum container. Exact under
+exact arithmetic; vertices are matched with a 1e-12 dot-product tolerance.
+"""
+function _incident_containers(g::UnstructuredMesh, cell_id::Int, q::SVector{3, Float64})
+    v = _cell_unit_corners(g, cell_id)
+    K = length(v)
+    ns = collect(cell_nodes(g, cell_id))
+    cands = Set{Int}([cell_id])
+    for k in 1:K
+        n1, n2 = v[k], v[mod1(k + 1, K)]
+        if _gc_side(n1, n2, q) == 0               # q on this edge's great circle
+            e = g._cell_edges.values[g._cell_edges.offsets[cell_id] - 1 + k]
+            for c2 in g._edge_cells[e]
+                push!(cands, c2)
+            end
+        end
+        if dot(n1, q) > 1 - 1e-12                 # q coincides with vertex k
+            for c2 in g._node_cells[ns[k]]
+                push!(cands, c2)
+            end
+        end
+    end
+    return minimum(c for c in cands if _point_in_convex_poly(g, c, q))
+end
+
+@inline function _locate_cell(g::UnstructuredMesh, lat::Real, lon::Real)
+    -90 <= lat <= 90 || throw(ArgumentError("lat $lat out of [-90, 90]"))
+    q = _latlon_to_cartesian(lat, Float64(lon), 1.0)
+    tree = _locate_kdtree(g)
+    n = num_cells(g)
+    k = 1
+    while k <= n
+        idxs, _ = NearestNeighbors.knn(tree, q, k, true)
+        for cid in idxs
+            if _point_in_convex_poly(g, cid, q)
+                # strictly interior? then cid is the answer; otherwise resolve
+                # shared-boundary ties to the smallest incident container
+                v = _cell_unit_corners(g, cid)
+                K = length(v)
+                onboundary = any(k2 -> _gc_side(v[k2], v[mod1(k2 + 1, K)], q) == 0, 1:K) ||
+                             any(k2 -> dot(v[k2], q) > 1 - 1e-12, 1:K)
+                return onboundary ? _incident_containers(g, cid, q) : cid
+            end
+        end
+        k = k == n ? n + 1 : min(2 * k, n)
+    end
+    throw(ArgumentError("point (lat=$lat, lon=$lon) lies outside the mesh"))
+end
+
+locate_cell(g::UnstructuredMesh, lat::Real, lon::Real) = _locate_cell(g, lat, lon)
