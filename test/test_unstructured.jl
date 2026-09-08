@@ -221,8 +221,9 @@ end
     m2 = UnstructuredMesh(lon, lat, fn; start_index = 1)
     @test num_cells(m2) == 4
     # (75, 110) is strictly inside the big cell (row 1); the top cells'
-    # centroids are ~9-12 deg away while the big cell's is ~55 deg, so k
-    # must double past the misses before the true container is tested.
+    # centroids are ~10-14 deg away while the big cell's is ~39 deg
+    # (measured, slerp-mean centroid), so k must double past the misses
+    # before the true container is tested.
     @test locate_cell(m2, 75.0, 110.0) == 1
 end
 
@@ -235,4 +236,103 @@ end
         lat, lon = ManifoldMeshes._cartesian_to_latlon(ctr)
         @test locate_cell(m, lat, lon) == locate_cell(g, lat, lon) == c
     end
+end
+
+using ManifoldMeshes: interpolation_weights
+
+@testset "UnstructuredMesh interpolation (quads)" begin
+    g = LatLonGrid(lat_edges = collect(range(-90.0, 90.0; length = 17)),
+        lon_edges = collect(range(0.0, 360.0; length = 33)))
+    m = unstructured_from_grid(g)
+    nlon = 32
+    mlat = Vector{Float64}(undef, num_nodes(m))
+    mlon = Vector{Float64}(undef, num_nodes(m))
+    for n in 1:num_nodes(m)
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(node_coordinates(m, n))
+        mlat[n] = lat
+        mlon[n] = lon
+    end
+    f(n) = 1.0 + mlat[n] / 100 + mlon[n] / 1000    # bilinear in (lat, lon)
+
+    for c in 1:num_cells(m)
+        # skip the polar rows (1..nlon south, last nlon north): coincident
+        # corner pairs make the bilinear Newton solve singular
+        (c <= nlon || c > num_cells(m) - nlon) && continue
+        ctr = cell_centroid(m, c)
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(ctr)
+        @test locate_cell(m, lat, lon) == c
+        nodes_m, w_m = interpolation_weights(m, c, lat, lon)
+        nodes_g, w_g = interpolation_weights(g, c, lat, lon)
+        @test collect(nodes_m) == collect(nodes_g)
+        @test sum(w_m) ≈ 1.0
+        # gnomonic-bilinear vs lat/lon-fraction bilinear agree to ~1% on 10° cells
+        @test isapprox(collect(w_m), collect(w_g); atol = 0.02)
+        approx = sum(w_m[k] * f(nodes_m[k]) for k in eachindex(nodes_m))
+        @test abs(approx - (1.0 + lat / 100 + lon / 1000)) < 0.02
+    end
+
+    # at a corner, the corner's weight dominates (interior cell, not polar)
+    n1 = collect(cell_nodes(m, 3 * nlon + 5))[1]
+    lat, lon = ManifoldMeshes._cartesian_to_latlon(node_coordinates(m, n1))
+    cid = locate_cell(m, lat, lon)
+    @test n1 in collect(cell_nodes(m, cid))
+    _, w = interpolation_weights(m, cid, lat, lon)
+    i = findfirst(==(n1), collect(cell_nodes(m, cid)))
+    @test w[i] > 0.95
+end
+
+@testset "Wachspress weights (K != 4)" begin
+    # octant triangle: vertices at lon/lat (0,0), (90,0), (0,90)
+    m = UnstructuredMesh([0.0, 90.0, 0.0], [0.0, 0.0, 90.0],
+        Matrix{Int}(reshape(1:3, 1, 3)); start_index = 1)
+    @test num_cells(m) == 1
+    # centroid = (1,1,1)/sqrt(3) direction; by 3-fold symmetry all weights = 1/3
+    c = normalize(SVector(1.0, 1.0, 1.0))
+    lat, lon = ManifoldMeshes._cartesian_to_latlon(c)
+    cid = locate_cell(m, lat, lon)
+    nodes, w = interpolation_weights(m, cid, lat, lon)
+    @test length(w) == 3
+    @test sum(w) ≈ 1.0
+    @test all(w .≈ 1 / 3)
+
+    # edge mid-arc between v1 and v2: weights symmetric in (w1, w2)
+    q = normalize(SVector(1.0, 1.0, 0.0))
+    lq, oq = ManifoldMeshes._cartesian_to_latlon(q)
+    nodes, w = interpolation_weights(m, locate_cell(m, lq, oq), lq, oq)
+    @test w[1] ≈ w[2] atol = 1e-9
+    @test w[3] < 0.4
+    # interpolation reconstructs the query direction approximately
+    dir = sum(w[k] * normalize(node_coordinates(m, nodes[k])) for k in 1:3)
+    @test isapprox(normalize(SVector{3, Float64}(dir)), q; atol = 0.02)
+
+    # polar hexagon at the pole: all weights = 1/6
+    m6 = UnstructuredMesh(collect(0.0:60.0:300.0), fill(30.0, 6),
+        Matrix{Int}(reshape(1:6, 1, 6)); start_index = 1)
+    nodes, w = interpolation_weights(m6, locate_cell(m6, 90.0, 0.0), 90.0, 0.0)
+    @test length(w) == 6
+    @test all(w .≈ 1 / 6)
+
+    # near a hexagon vertex (just poleward of the bulging great-circle edge:
+    # the boundary reaches ~lat 30.16 at this longitude), vertex 1 dominates
+    nodes, w = interpolation_weights(m6, locate_cell(m6, 30.5, 1.0), 30.5, 1.0)
+    @test w[1] > 0.9
+end
+
+@testset "mixed-mesh interpolation" begin
+    m = UnstructuredMesh(Sphere(2), cube_points(), CUBE_FACES_SPLIT;
+        fill_value = -1)
+    # (1, 0.3, 0.1) sits inside triangle 2 (1,3,2); bilinear is NOT used (K=3)
+    q = normalize(SVector(1.0, 0.3, 0.1))
+    lq, oq = ManifoldMeshes._cartesian_to_latlon(q)
+    cid = locate_cell(m, lq, oq)
+    @test cid == 2
+    nodes, w = interpolation_weights(m, cid, lq, oq)
+    @test length(w) == 3
+    @test sum(w) ≈ 1.0
+    # the 5 quad cells still use bilinear
+    ctr = cell_centroid(m, 3)
+    lat, lon = ManifoldMeshes._cartesian_to_latlon(ctr)
+    nodes, w = interpolation_weights(m, 3, lat, lon)
+    @test length(w) == 4
+    @test sum(w) ≈ 1.0
 end

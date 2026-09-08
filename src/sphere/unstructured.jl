@@ -422,3 +422,68 @@ end
 end
 
 locate_cell(g::UnstructuredMesh, lat::Real, lon::Real) = _locate_cell(g, lat, lon)
+
+# -- Interpolation --
+#
+# The shared 4-node corner solver lives in locate.jl; `_wachspress_weights`
+# lives HERE because its signature mentions `UnstructuredMesh`, which does not
+# exist yet when locate.jl is included (module include order).
+
+function _cell_local_coords(g::UnstructuredMesh, cell_id::Int, lat::Real, lon::Real)
+    _local_coords_via_corners(g, cell_id, lat, lon)
+end
+
+"""
+    _wachspress_weights(g::UnstructuredMesh, cell_id, lat, lon) -> weights
+
+Wachspress coordinates of the query direction within a convex K-gon cell
+(K != 4 path of interpolation): 2D cross-product areas on the gnomonic
+projection about the cell centroid. With `A_k` the signed area of triangle
+`(v_k, v_{k+1}, q)` and `C_k` the area of the vertex wedge
+`(v_{k-1}, v_k, v_{k+1})`, the weights are `W_k ∝ C_k / (A_{k-1} A_k)`,
+normalized to sum 1. Reduces to exact barycentric coordinates on triangles.
+"""
+function _wachspress_weights(g::UnstructuredMesh, cell_id::Int,
+        lat::Real, lon::Real)
+    ns = cell_nodes(g, cell_id)
+    K = length(ns)
+    # Projection center: the SYMMETRIC corner mean, NOT the cached centroid.
+    # `Manifolds.mean` (GeodesicInterpolation) is order-dependent sequential
+    # slerp — 5-8 deg off the symmetric center for large cells — which would
+    # make weights depend on the file's corner order. Any interior center is
+    # valid for the gnomonic projection; the symmetric mean is order-free.
+    v = _cell_unit_corners(g, cell_id)
+    c = normalize(sum(v))
+    north = SVector(-c[1] * c[3], -c[2] * c[3], c[1]^2 + c[2]^2)
+    north = north / norm(north)
+    east = SVector(-c[2], c[1], 0.0)
+    east = east / norm(east)
+    proj(p) = (dot(p, east), dot(p, north))
+    θ = π / 2 - deg2rad(Float64(lat))
+    φ = deg2rad(mod(Float64(lon), 360.0))
+    sθ, cθ = sincos(θ)
+    sφ, cφ = sincos(φ)
+    q = proj(SVector{3, Float64}(sθ * cφ, sθ * sφ, cθ))
+    p = [proj(v[k]) for k in 1:K]
+    tri2(a, b, o) = (b[1] - a[1]) * (o[2] - a[2]) - (b[2] - a[2]) * (o[1] - a[1])
+    Cs = [tri2(p[mod1(k - 1, K)], p[k], p[mod1(k + 1, K)]) for k in 1:K]
+    orient = sign(Cs[1])
+    A = [max(orient * tri2(p[k], p[mod1(k + 1, K)], q), 1e-14) for k in 1:K]
+    C = abs.(Cs)
+    W = [C[k] / (A[mod1(k - 1, K)] * A[k]) for k in 1:K]
+    total = sum(W)
+    return ntuple(k -> W[k] / total, K)
+end
+
+# K-aware override of the quad-bilinear default (locate.jl): quads keep the
+# bilinear corner solver (consistency with the parametric grids — this is what
+# the LatLonGrid oracle tests exercise); other arities use Wachspress.
+function interpolation_weights(g::UnstructuredMesh, cell_id::Int,
+        lat::Real, lon::Real)
+    nodes = cell_nodes(g, cell_id)
+    if length(nodes) == 4
+        s, t = _cell_local_coords(g, cell_id, lat, lon)
+        return (nodes, _bilinear_weights(s, t))
+    end
+    return (nodes, _wachspress_weights(g, cell_id, lat, lon))
+end

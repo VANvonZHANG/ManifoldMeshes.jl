@@ -839,59 +839,7 @@ HEALPix cells are not axis-aligned in (theta, phi), so a planar bilinear
 solve on the 4 corner nodes is used (gnomonic projection + 2D Newton).
 """
 function _cell_local_coords(g::HEALPixGrid, cell_id::Int, lat::Real, lon::Real)
-    theta = π / 2 - deg2rad(Float64(lat))
-    phi = deg2rad(mod(Float64(lon), 360.0))
-    return _healpix_local_via_corners(g, cell_id, theta, phi)
-end
-
-"""
-    _healpix_local_via_corners(g, cell_id, theta, phi) -> (s, t)
-
-Solve for (s,t) such that the planar bilinear blend of the 4 corner nodes
-(in a gnomonic projection about the cell centroid) reproduces the query point.
-"""
-function _healpix_local_via_corners(g::HEALPixGrid, cell_id::Int, theta::Float64,
-        phi::Float64)
-    nids = cell_nodes(g, cell_id)
-    c = cell_centroid(g, cell_id)
-    # tangent basis at centroid
-    north = SVector(-c[1] * c[3], -c[2] * c[3], c[1]^2 + c[2]^2)
-    north = north / norm(north)
-    east = SVector(-c[2], c[1], 0.0)
-    east = east / norm(east)
-    function proj(p)
-        d = p - dot(p, c) * c
-        return (dot(d, east), dot(d, north))
-    end
-    sθ, cθ = sincos(theta)
-    sφ, cφ = sincos(phi)
-    q_dir = SVector{3, Float64}(sθ * cφ, sθ * sφ, cθ)
-    q = proj(q_dir)
-    pSW = proj(node_coordinates(g, nids[1]))
-    pSE = proj(node_coordinates(g, nids[2]))
-    pNE = proj(node_coordinates(g, nids[3]))
-    pNW = proj(node_coordinates(g, nids[4]))
-    # Bilinear solve: q = (1-s)(1-t)*pSW + s*(1-t)*pSE + s*t*pNE + (1-s)*t*pNW
-    # 2D Newton iterations (planar, well-conditioned for small cells)
-    s, t = 0.5, 0.5
-    for _ in 1:5
-        e_u = (1 - s) * (1 - t) * pSW[1] + s * (1 - t) * pSE[1] +
-              s * t * pNE[1] + (1 - s) * t * pNW[1] - q[1]
-        e_v = (1 - s) * (1 - t) * pSW[2] + s * (1 - t) * pSE[2] +
-              s * t * pNE[2] + (1 - s) * t * pNW[2] - q[2]
-        deds = -(1 - t) * pSW[1] + (1 - t) * pSE[1] +
-               t * pNE[1] - t * pNW[1]
-        dedt = -(1 - s) * pSW[1] - s * pSE[1] +
-               s * pNE[1] + (1 - s) * pNW[1]
-        deds_v = -(1 - t) * pSW[2] + (1 - t) * pSE[2] +
-                 t * pNE[2] - t * pNW[2]
-        dedt_v = -(1 - s) * pSW[2] - s * pSE[2] +
-                 s * pNE[2] + (1 - s) * pNW[2]
-        det = deds * dedt_v - deds_v * dedt
-        s -= (e_u * dedt_v - e_v * dedt) / det
-        t -= (deds * e_v - deds_v * e_u) / det
-    end
-    return (s, t)
+    return _local_coords_via_corners(g, cell_id, lat, lon)
 end
 
 locate_cell(g::HEALPixGrid, lat::Real, lon::Real) = _locate_cell(g, lat, lon)

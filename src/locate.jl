@@ -58,6 +58,59 @@ corner node ordering is `(SW, SE, NE, NW)` (matching `cell_nodes`):
     )
 end
 
+"""
+    _local_coords_via_corners(g, cell_id, lat, lon) -> (s, t)
+
+Generic local coordinates for a 4-node cell of ANY mesh: project the query
+direction and the cell's four corners (unit-normalized) onto the tangent
+plane at the (unit) cell centroid — the gnomonic projection via the east/north
+basis — then solve the bilinear inverse with 2D Newton. Requires corners in
+cyclic boundary order `(SW, SE, NE, NW)` as returned by `cell_nodes`.
+Normalization makes the result independent of the mesh radius.
+"""
+function _local_coords_via_corners(g::AbstractManifoldMesh, cell_id::Int,
+        lat::Real, lon::Real)
+    nids = cell_nodes(g, cell_id)
+    length(nids) == 4 || throw(ArgumentError(
+        "_local_coords_via_corners requires a 4-node cell, got $(length(nids))"))
+    c = normalize(SVector{3, Float64}(cell_centroid(g, cell_id)))
+    north = SVector(-c[1] * c[3], -c[2] * c[3], c[1]^2 + c[2]^2)
+    north = north / norm(north)
+    east = SVector(-c[2], c[1], 0.0)
+    east = east / norm(east)
+    proj(p) = (dot(p, east), dot(p, north))
+    θ = π / 2 - deg2rad(Float64(lat))
+    φ = deg2rad(mod(Float64(lon), 360.0))
+    sθ, cθ = sincos(θ)
+    sφ, cφ = sincos(φ)
+    q = proj(SVector{3, Float64}(sθ * cφ, sθ * sφ, cθ))
+    pSW = proj(normalize(SVector{3, Float64}(node_coordinates(g, nids[1]))))
+    pSE = proj(normalize(SVector{3, Float64}(node_coordinates(g, nids[2]))))
+    pNE = proj(normalize(SVector{3, Float64}(node_coordinates(g, nids[3]))))
+    pNW = proj(normalize(SVector{3, Float64}(node_coordinates(g, nids[4]))))
+    # Bilinear solve: q = (1-s)(1-t)*pSW + s*(1-t)*pSE + s*t*pNE + (1-s)*t*pNW
+    # 2D Newton iterations (planar, well-conditioned for small cells)
+    s, t = 0.5, 0.5
+    for _ in 1:5
+        e_u = (1 - s) * (1 - t) * pSW[1] + s * (1 - t) * pSE[1] +
+              s * t * pNE[1] + (1 - s) * t * pNW[1] - q[1]
+        e_v = (1 - s) * (1 - t) * pSW[2] + s * (1 - t) * pSE[2] +
+              s * t * pNE[2] + (1 - s) * t * pNW[2] - q[2]
+        deds = -(1 - t) * pSW[1] + (1 - t) * pSE[1] +
+               t * pNE[1] - t * pNW[1]
+        dedt = -(1 - s) * pSW[1] - s * pSE[1] +
+               s * pNE[1] + (1 - s) * pNW[1]
+        deds_v = -(1 - t) * pSW[2] + (1 - t) * pSE[2] +
+                 t * pNE[2] - t * pNW[2]
+        dedt_v = -(1 - s) * pSW[2] - s * pSE[2] +
+                 s * pNE[2] + (1 - s) * pNW[2]
+        det = deds * dedt_v - deds_v * dedt
+        s -= (e_u * dedt_v - e_v * dedt) / det
+        t -= (deds * e_v - deds_v * e_u) / det
+    end
+    return (s, t)
+end
+
 # ---- Public interface ----
 
 """
