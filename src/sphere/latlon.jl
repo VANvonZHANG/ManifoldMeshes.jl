@@ -221,20 +221,20 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
         cid = (ilat - 1) * nlon + ilon
         # south edge
         eid_s = (ilat - 1) * nlon + ilon
-        _edge_cells.values[ptrs[eid_s]] = cid;
+        _edge_cells.values[ptrs[eid_s]] = cid
         ptrs[eid_s] += 1
         # north edge
         eid_n = ilat * nlon + ilon
-        _edge_cells.values[ptrs[eid_n]] = cid;
+        _edge_cells.values[ptrs[eid_n]] = cid
         ptrs[eid_n] += 1
         # west edge
         eid_w = n_h_edges + (ilat - 1) * nlon + ilon
-        _edge_cells.values[ptrs[eid_w]] = cid;
+        _edge_cells.values[ptrs[eid_w]] = cid
         ptrs[eid_w] += 1
         # east edge
         east_ilon = ilon == nlon ? 1 : ilon + 1
         eid_e = n_h_edges + (ilat - 1) * nlon + east_ilon
-        _edge_cells.values[ptrs[eid_e]] = cid;
+        _edge_cells.values[ptrs[eid_e]] = cid
         ptrs[eid_e] += 1
     end
 
@@ -261,13 +261,13 @@ function LatLonGrid(; lat_edges::Vector{Float64}, lon_edges::Vector{Float64}, R:
         se = sw + 1
         nw = ilat * (nlon + 1) + ilon
         ne = nw + 1
-        @inbounds _node_cells.values[ptrs2[sw]] = cid;
+        @inbounds _node_cells.values[ptrs2[sw]] = cid
         ptrs2[sw] += 1
-        @inbounds _node_cells.values[ptrs2[se]] = cid;
+        @inbounds _node_cells.values[ptrs2[se]] = cid
         ptrs2[se] += 1
-        @inbounds _node_cells.values[ptrs2[nw]] = cid;
+        @inbounds _node_cells.values[ptrs2[nw]] = cid
         ptrs2[nw] += 1
-        @inbounds _node_cells.values[ptrs2[ne]] = cid;
+        @inbounds _node_cells.values[ptrs2[ne]] = cid
         ptrs2[ne] += 1
     end
 

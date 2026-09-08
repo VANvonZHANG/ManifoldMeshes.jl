@@ -196,3 +196,10 @@ function Base.getindex(m::MixedCellTopology, i::Int)
     return m.indices[i]
 end
 Base.IndexStyle(::Type{<:MixedCellTopology}) = IndexLinear()
+
+# Tuple comparison: MixedCellTopology is a value type; compare elementwise
+# against plain tuples so `cell_nodes(g, c) == (1, 4, 3)` reads naturally.
+function Base.:(==)(m::MixedCellTopology, t::Tuple{Vararg{Int}})
+    m.len == length(t) && all(i -> m.indices[i] == t[i], 1:(m.len))
+end
+Base.:(==)(t::Tuple{Vararg{Int}}, m::MixedCellTopology) = m == t

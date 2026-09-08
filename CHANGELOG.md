@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-08
+
+### Added
+
+- **`UnstructuredMesh{M,P,MAX_K}`**: arbitrary spherical polygon meshes stored as data (node coordinates + padded face-node table), the fifth mesh type. Mixed per-cell arity (`IsMixed{MAX_K}`): triangles, quads, pentagons, hexagons. Full mesh interface, two-phase point location (lazy k-d tree over centroids via new `NearestNeighbors.jl` dependency + exact spherical point-in-polygon), and arity-aware interpolation — bilinear via the generic corner solver for quads, Wachspress coordinates (barycentric on triangles) otherwise. Additive `Base.:(==)` between `MixedCellTopology` and integer tuples (both directions). v1: `Sphere` manifolds only; cells must be convex.
+- Generic topology derivation `src/connectivity.jl`: padded face-node table → all CSR adjacency maps (variable arity), reusable by future mesh types.
+
+### Changed
+
+- **HEALPix local coordinates now delegate** to the shared generic corner solver `_local_coords_via_corners` (lifted from `_healpix_local_via_corners`, unit-normalized for radius independence). Behavior identical for unit radius; at non-unit radii the old code mixed radius-scaled corners with a unit query direction and is now correct. `_healpix_local_via_corners` is removed.
+
 ## [0.6.0] - 2026-07-11
 
 ### Added

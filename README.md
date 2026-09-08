@@ -15,6 +15,7 @@ Mesh infrastructure for scientific computing on Riemannian manifolds. Built on [
 | `CubedSphereGrid` | Cubed-sphere via gnomonic projection | Uniform quads, 6 faces | `IsSemiGrid`, `MultiPatch` |
 | `ReducedGaussianGrid` | Gaussian latitude bands with reduced longitude count | Uniform quads | `IsSemiGrid` |
 | `HEALPixGrid` | Hierarchical Equal Area iso-Latitude Pixelization | Uniform quads | `IsSemiGrid` |
+| `UnstructuredMesh` | Arbitrary spherical polygon mesh stored as data (nodes + face-node table) | Mixed polygons (`IsMixed{MAX_K}`) | `IsMesh` |
 
 ## Installation
 
