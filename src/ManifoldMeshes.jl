@@ -12,6 +12,7 @@ include("interface.jl")
 include("locate.jl")
 include("dual.jl")
 include("csr.jl")
+include("connectivity.jl")
 
 # Export types and functions
 export TopologyStyle, IsGrid, IsSemiGrid, IsMesh, AbstractLocation, NodeLoc, CellLoc,

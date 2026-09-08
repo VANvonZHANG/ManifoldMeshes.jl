@@ -23,6 +23,7 @@ end
     include("test_reduced_gaussian.jl")
     include("test_healpix.jl")
     include("test_csr.jl")
+    include("test_connectivity.jl")
     include("test_batch_queries.jl")
     include("test_node_cells.jl")
     include("test_locate.jl")
