@@ -14,6 +14,7 @@ foreign meshes (MPAS, ICON) first-class.
 
 ```julia
 using ManifoldMeshes
+using Manifolds   # Sphere
 
 # From a UGRID-style 0-based table; pad inactive slots with fill_value
 mesh = UnstructuredMesh(node_lon, node_lat, face_nodes; R = 1.0,

@@ -18,14 +18,17 @@ Returns `(n_nodes, n_edges, cell_edges, edge_nodes, edge_cells, cell_cells,
 node_cells, node_edges)`. All maps are `CSRMapping`s. `cell_edges[c][k]` is the
 edge between corner k and corner k+1 of cell c (cyclic); `edge_cells` rows have
 length 1 (mesh boundary) or 2 (interior); `cell_cells` uses 0 as the sentinel
-for missing neighbors.
+for missing neighbors. `n_nodes` is the largest node id referenced by an
+active prefix — fill entries beyond `ks[c]` are ignored.
 """
 function _derive_mesh_topology(face_nodes::AbstractMatrix{Int}, ks::Vector{Int})
     n_cells = size(face_nodes, 1)
     n_cells > 0 || throw(ArgumentError("face_nodes must have at least one row"))
     length(ks) == n_cells ||
         throw(ArgumentError("ks has $(length(ks)) entries for $n_cells cells"))
-    n_nodes = maximum(face_nodes)
+    # Size node maps from ACTIVE entries only: a positive fill value (e.g. a
+    # netCDF _FillValue) must not inflate the node-indexed CSRs.
+    n_nodes = maximum(c -> maximum(@view face_nodes[c, 1:ks[c]]), 1:n_cells)
 
     # cell -> edges in cyclic corner order; edges keyed by undirected pair
     edge_ids = Dict{Tuple{Int, Int}, Int}()

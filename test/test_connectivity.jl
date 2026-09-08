@@ -70,6 +70,12 @@ end
     @test length(topo.cell_edges[3]) == 4
     # vertex 1 now belongs to 4 cells (2 triangles + +y + +z)
     @test length(topo.node_cells[1]) == 4
+
+    # positive fill values must not inflate the node maps
+    bigfill = copy(CUBE_FACES_SPLIT)
+    bigfill[bigfill .== -1] .= 999_999
+    tf = ManifoldMeshes._derive_mesh_topology(bigfill, KS_SPLIT)
+    @test tf.n_nodes == 8
 end
 
 @testset "connectivity derivation with boundary" begin

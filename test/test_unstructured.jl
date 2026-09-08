@@ -80,6 +80,11 @@ end
         [1 2 -1 -1; 2 3 4 5])                     # only 2 active corners
     @test_throws ArgumentError UnstructuredMesh(Euclidean(2), pts,
         CUBE_FACES)                               # v1 gate: Sphere only
+    # hemisphere-spanning (antipodal-corner) cells must fail fast, not
+    # produce NaN caches that poison the locate index later
+    @test_throws ArgumentError UnstructuredMesh(
+        [0.0, 180.0, 90.0, 270.0], [0.0, 0.0, 0.0, 0.0],
+        Matrix{Int}(reshape(1:4, 1, 4)); start_index = 1)
 end
 
 using LinearAlgebra   # normalize/norm in the R=3 analytic block
@@ -228,14 +233,22 @@ end
 end
 
 @testset "locate oracle vs LatLonGrid" begin
-    g = LatLonGrid(lat_edges = collect(range(-90.0, 90.0; length = 19)),
-        lon_edges = collect(range(0.0, 360.0; length = 37)))
+    g = LatLonGrid(lat_edges = collect(range(-90.0, 90.0; length = 17)),
+        lon_edges = collect(range(0.0, 360.0; length = 33)))
     m = unstructured_from_grid(g)
     for c in 1:num_cells(g)
         ctr = cell_centroid(g, c)                  # strictly interior to its cell
         lat, lon = ManifoldMeshes._cartesian_to_latlon(ctr)
         @test locate_cell(m, lat, lon) == locate_cell(g, lat, lon) == c
     end
+
+    # smallest-id tie-break across duplicated-node features:
+    # the pole belongs to the 32 top-row cells (481..512), the seam vertex
+    # (45,0) to cells {353,384,385,416}, the seam vertex (22.5,0) to
+    # cells {289,320,321,352}
+    @test locate_cell(m, 90.0, 0.0) == 481
+    @test locate_cell(m, 45.0, 0.0) == 353
+    @test locate_cell(m, 22.5, 0.0) == 289
 end
 
 using ManifoldMeshes: interpolation_weights
@@ -255,9 +268,6 @@ using ManifoldMeshes: interpolation_weights
     f(n) = 1.0 + mlat[n] / 100 + mlon[n] / 1000    # bilinear in (lat, lon)
 
     for c in 1:num_cells(m)
-        # skip the polar rows (1..nlon south, last nlon north): coincident
-        # corner pairs make the bilinear Newton solve singular
-        (c <= nlon || c > num_cells(m) - nlon) && continue
         ctr = cell_centroid(m, c)
         lat, lon = ManifoldMeshes._cartesian_to_latlon(ctr)
         @test locate_cell(m, lat, lon) == c

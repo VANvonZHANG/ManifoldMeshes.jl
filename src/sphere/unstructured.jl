@@ -20,6 +20,8 @@ irrelevant). Point location uses a lazily built k-d tree over cell centroids
 
 # Constructors
 ```julia
+using Manifolds   # Sphere
+
 UnstructuredMesh(M::AbstractManifold, points::Vector{<:SVector{3,Float64}}, face_nodes; fill_value = -1)
 UnstructuredMesh(node_lon, node_lat, face_nodes; R = 1.0, start_index = 0, fill_value = -1)
 ```
@@ -41,6 +43,8 @@ struct UnstructuredMesh{M <: AbstractManifold, P, MAX_K} <: AbstractManifoldMesh
     _cell_cells::CSRMapping
     _node_edges::CSRMapping
     _cell_edges::CSRMapping
+    _twin_nodes::Dict{Int, Vector{Int}}   # node id -> ids at the same position
+    _twin_edges::Dict{Int, Vector{Int}}   # edge id -> edges with the same endpoints
     _locate_index::Base.RefValue{Union{Nothing, NearestNeighbors.KDTree}}
     _dual::Base.RefValue{Union{Nothing, AbstractManifoldMesh{M}}}
 end
@@ -119,6 +123,42 @@ function _build_unstructured(M, R::Float64, points::Vector{P}, conn::Matrix{Int}
 
     topo = _derive_mesh_topology(conn, ks)
 
+    # Geometric twins: periodic/foreign tables may represent one geometric
+    # vertex or edge by several node ids (poles, lon=0/360 seams). Location
+    # tie-breaking must union incident cells across twins. Positions are
+    # matched on a 1e-12 grid of the unit sphere — duplicated features in
+    # real files are bit-identical points.
+    _twin_nodes = Dict{Int, Vector{Int}}()
+    pos_groups = Dict{Tuple{Int, Int, Int}, Vector{Int}}()
+    for n in 1:n_nodes
+        u = normalize(points[n])
+        key = (round(Int, u[1] * 1e12), round(Int, u[2] * 1e12),
+            round(Int, u[3] * 1e12))
+        push!(get!(pos_groups, key, Int[]), n)
+    end
+    for group in values(pos_groups)
+        length(group) > 1 && for n in group
+            _twin_nodes[n] = group
+        end
+    end
+    _twin_edges = Dict{Int, Vector{Int}}()
+    edge_groups = Dict{Tuple{Tuple{Int, Int, Int}, Tuple{Int, Int, Int}}, Vector{Int}}()
+    for e in 1:(topo.n_edges)
+        i, j = getindex_fixed(topo.edge_nodes, e, Val(2))
+        ui, uj = normalize(points[i]), normalize(points[j])
+        ki = (round(Int, ui[1] * 1e12), round(Int, ui[2] * 1e12),
+            round(Int, ui[3] * 1e12))
+        kj = (round(Int, uj[1] * 1e12), round(Int, uj[2] * 1e12),
+            round(Int, uj[3] * 1e12))
+        key = minmax(ki, kj)
+        push!(get!(edge_groups, key, Int[]), e)
+    end
+    for group in values(edge_groups)
+        length(group) > 1 && for e in group
+            _twin_edges[e] = group
+        end
+    end
+
     # Geometry caches: l'Huilier areas by fan triangulation from corner 1
     # (for quads this is exactly the existing A-C diagonal split, with the
     # same degenerate B-D fallback as LatLonGrid); centroids as the
@@ -138,13 +178,25 @@ function _build_unstructured(M, R::Float64, points::Vector{P}, conn::Matrix{Int}
                    spherical_triangle_area(R, v[1], v[2], v[4])
         end
         _cell_volumes[c] = area
-        cbar = Manifolds.mean(unit, [normalize(p) for p in v])
-        _cell_centroids[c] = R * P(normalize(SVector{3, Float64}(cbar)))
+        unit_corners = [normalize(p) for p in v]
+        cbar = Manifolds.mean(unit, unit_corners)
+        cunit = normalize(SVector{3, Float64}(cbar))
+        # Hemisphere-spanning cells make the Riemannian mean collapse to the
+        # zero vector (normalize then yields NaN) and l'Huilier produce
+        # garbage areas; without a guard the poisoned caches only surface
+        # later, far from the cause, in the locate k-d tree. The symmetric
+        # corner sum is ~0 exactly when no open hemisphere contains all
+        # corners (antipodal corners); coincident corners are fine (sum = K).
+        (isfinite(area) && all(isfinite, cunit) &&
+         norm(sum(unit_corners)) > 1e-8) || throw(ArgumentError(
+            "cell $c has degenerate geometry (non-finite area or centroid, or corners spanning a hemisphere); cells must be convex spherical polygons within a hemisphere"))
+        _cell_centroids[c] = R * P(cunit)
     end
 
     return UnstructuredMesh{typeof(M), P, MAX_K}(M, R, points, _cell_nodes,
         _cell_volumes, _cell_centroids, topo.edge_nodes, topo.edge_cells,
         topo.node_cells, topo.cell_cells, topo.node_edges, topo.cell_edges,
+        _twin_nodes, _twin_edges,
         Ref{Union{Nothing, NearestNeighbors.KDTree}}(nothing),
         Ref{Union{Nothing, AbstractManifoldMesh{typeof(M)}}}(nothing))
 end
@@ -372,8 +424,10 @@ end
 
 Smallest cell id among the cells containing `q`, given `q` lies on the
 boundary of `cell_id`: unions the cells across every edge and vertex of
-`cell_id` that `q` touches, then takes the minimum container. Exact under
-exact arithmetic; vertices are matched with a 1e-12 dot-product tolerance.
+`cell_id` that `q` touches — including geometric twins (seam/pole duplicates
+of the same feature carry distinct node/edge ids) — then takes the minimum
+container. Exact under exact arithmetic; vertices are matched with a
+1e-12 dot-product tolerance.
 """
 function _incident_containers(g::UnstructuredMesh, cell_id::Int, q::SVector{3, Float64})
     v = _cell_unit_corners(g, cell_id)
@@ -384,13 +438,17 @@ function _incident_containers(g::UnstructuredMesh, cell_id::Int, q::SVector{3, F
         n1, n2 = v[k], v[mod1(k + 1, K)]
         if _gc_side(n1, n2, q) == 0               # q on this edge's great circle
             e = g._cell_edges.values[g._cell_edges.offsets[cell_id] - 1 + k]
-            for c2 in g._edge_cells[e]
-                push!(cands, c2)
+            for e2 in get(g._twin_edges, e, (e,))
+                for c2 in g._edge_cells[e2]
+                    push!(cands, c2)
+                end
             end
         end
         if dot(n1, q) > 1 - 1e-12                 # q coincides with vertex k
-            for c2 in g._node_cells[ns[k]]
-                push!(cands, c2)
+            for n2 in get(g._twin_nodes, ns[k], (ns[k],))
+                for c2 in g._node_cells[n2]
+                    push!(cands, c2)
+                end
             end
         end
     end
