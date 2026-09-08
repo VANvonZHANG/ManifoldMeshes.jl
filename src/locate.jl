@@ -74,10 +74,17 @@ function _local_coords_via_corners(g::AbstractManifoldMesh, cell_id::Int,
     length(nids) == 4 || throw(ArgumentError(
         "_local_coords_via_corners requires a 4-node cell, got $(length(nids))"))
     c = normalize(SVector{3, Float64}(cell_centroid(g, cell_id)))
-    north = SVector(-c[1] * c[3], -c[2] * c[3], c[1]^2 + c[2]^2)
-    north = north / norm(north)
-    east = SVector(-c[2], c[1], 0.0)
-    east = east / norm(east)
+        if c[1]^2 + c[2]^2 < 1e-14
+            # center exactly at a pole: the standard east/north basis degenerates;
+            # any orthonormal frame is exact (the constructions are frame-invariant)
+            east = SVector(1.0, 0.0, 0.0)
+            north = SVector(0.0, 1.0, 0.0)
+        else
+            north = SVector(-c[1] * c[3], -c[2] * c[3], c[1]^2 + c[2]^2)
+            north = north / norm(north)
+            east = SVector(-c[2], c[1], 0.0)
+            east = east / norm(east)
+        end
     proj(p) = (dot(p, east), dot(p, north))
     θ = π / 2 - deg2rad(Float64(lat))
     φ = deg2rad(mod(Float64(lon), 360.0))

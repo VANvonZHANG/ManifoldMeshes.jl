@@ -316,6 +316,18 @@ end
     # the boundary reaches ~lat 30.16 at this longitude), vertex 1 dominates
     nodes, w = interpolation_weights(m6, locate_cell(m6, 30.5, 1.0), 30.5, 1.0)
     @test w[1] > 0.9
+
+    # polar cap with symmetric corner longitudes: the symmetric center is
+    # within 1e-16 of the pole (inside the guard band) — the tangent-basis
+    # guard must keep weights finite.
+    # K=5 (not 4) so the Wachspress path is exercised; a K=4 cap would route
+    # to the bilinear corner solver, whose cached slerp-mean center is NOT
+    # the pole and whose weights are therefore not exactly symmetric.
+    cap = UnstructuredMesh(collect(0.0:72.0:288.0), fill(60.0, 5),
+        Matrix{Int}(reshape(1:5, 1, 5)); start_index = 1)
+    nodes, w = interpolation_weights(cap, locate_cell(cap, 90.0, 0.0), 90.0, 0.0)
+    @test all(isfinite, w)
+    @test all(w .≈ 1 / 5)     # 5-fold symmetric cap: equal weights at the pole
 end
 
 @testset "mixed-mesh interpolation" begin

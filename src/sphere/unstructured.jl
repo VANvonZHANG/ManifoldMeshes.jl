@@ -438,26 +438,32 @@ end
 
 Wachspress coordinates of the query direction within a convex K-gon cell
 (K != 4 path of interpolation): 2D cross-product areas on the gnomonic
-projection about the cell centroid. With `A_k` the signed area of triangle
+projection about the cell's symmetric corner mean (order-independent). With `A_k` the signed area of triangle
 `(v_k, v_{k+1}, q)` and `C_k` the area of the vertex wedge
 `(v_{k-1}, v_k, v_{k+1})`, the weights are `W_k ∝ C_k / (A_{k-1} A_k)`,
 normalized to sum 1. Reduces to exact barycentric coordinates on triangles.
 """
 function _wachspress_weights(g::UnstructuredMesh, cell_id::Int,
         lat::Real, lon::Real)
-    ns = cell_nodes(g, cell_id)
-    K = length(ns)
     # Projection center: the SYMMETRIC corner mean, NOT the cached centroid.
     # `Manifolds.mean` (GeodesicInterpolation) is order-dependent sequential
     # slerp — 5-8 deg off the symmetric center for large cells — which would
     # make weights depend on the file's corner order. Any interior center is
     # valid for the gnomonic projection; the symmetric mean is order-free.
     v = _cell_unit_corners(g, cell_id)
+    K = length(v)
     c = normalize(sum(v))
-    north = SVector(-c[1] * c[3], -c[2] * c[3], c[1]^2 + c[2]^2)
-    north = north / norm(north)
-    east = SVector(-c[2], c[1], 0.0)
-    east = east / norm(east)
+    if c[1]^2 + c[2]^2 < 1e-14
+        # center exactly at a pole: the standard east/north basis degenerates;
+        # any orthonormal frame is exact (the constructions are frame-invariant)
+        east = SVector(1.0, 0.0, 0.0)
+        north = SVector(0.0, 1.0, 0.0)
+    else
+        north = SVector(-c[1] * c[3], -c[2] * c[3], c[1]^2 + c[2]^2)
+        north = north / norm(north)
+        east = SVector(-c[2], c[1], 0.0)
+        east = east / norm(east)
+    end
     proj(p) = (dot(p, east), dot(p, north))
     θ = π / 2 - deg2rad(Float64(lat))
     φ = deg2rad(mod(Float64(lon), 360.0))
