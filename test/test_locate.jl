@@ -70,8 +70,8 @@ end
     f(s, t) = 2 + 3s + 5t + 7s * t
     corner_vals = (f(0, 0), f(1, 0), f(1, 1), f(0, 1))
     for (s, t) in [(0.25, 0.5), (0.1, 0.9), (0.7, 0.3), (0.5, 0.5)]
-        lat = -90.0 + 90.0 * s      # band [-90,0): s in [0,1]
-        lon = 90.0 * t              # band [0,90)
+        lat = -90.0 + 90.0 * t      # band [-90,0): t is the latitude fraction
+        lon = 90.0 * s              # band [0,90): s is the longitude fraction
         nodes2, w2 = interpolation_weights(g, cid, lat, lon)
         nmax = maximum(nodes2)
         field = zeros(nmax)
@@ -80,6 +80,45 @@ end
         end
         gathered = sum(w2 .* field[collect(nodes2)])
         @test gathered ≈ f(s, t)
+    end
+end
+
+@testset "LatLon _cell_local_coords corner convention" begin
+    g = LatLonGrid(lat_edges = collect(range(-90.0, 90.0; length = 7)),
+        lon_edges = collect(range(0.0, 360.0; length = 9)))   # 30° x 45° cells
+    cid = 28   # (ilat=4, ilon=4): lat [0,30), lon [135,180)
+    # (s, t) convention of _bilinear_weights: s = SW->SE (longitude) fraction,
+    # t = SW->NW (latitude) fraction; corners (SW, SE, NE, NW) map to
+    # ((0,0), (1,0), (1,1), (0,1)).
+    st_is(a, b) = all(isapprox.(a, b; atol = 1e-9))   # Base lacks Tuple isapprox
+    expected = ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))
+    for (k, nid) in enumerate(cell_nodes(g, cid))
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(node_coordinates(g, nid))
+        @test st_is(ManifoldMeshes._cell_local_coords(g, cid, lat, lon), expected[k])
+    end
+    # interior probes: mid south edge -> (0.5, 0); mid west edge -> (0, 0.5)
+    @test st_is(ManifoldMeshes._cell_local_coords(g, cid, 0.0, 157.5), (0.5, 0.0))
+    @test st_is(ManifoldMeshes._cell_local_coords(g, cid, 15.0, 135.0), (0.0, 0.5))
+end
+
+@testset "LatLon bilinear exactness (s = longitude, t = latitude)" begin
+    # Fields linear in latitude / longitude interpolate exactly under bilinear
+    # weights. The historical (s, t) transposition swapped the SE and NW weights,
+    # erroring by |latfrac - lonfrac| * |V_SE - V_NW|. Pole and seam queries are
+    # excluded: node longitudes are arbitrary there.
+    g = LatLonGrid(lat_edges = collect(range(-90.0, 90.0; length = 19)),
+        lon_edges = collect(range(0.0, 360.0; length = 73)))   # 10° cells
+    flat(lat, lon) = 3.0 + 5.0 * lat / 180.0
+    flon(lat, lon) = 2.0 + 3.0 * lon / 360.0
+    probes = ((-75.3, 12.7), (-12.5, 122.25), (33.7, 251.4), (5.5, 200.1), (77.1, 345.5))
+    for (lat, lon) in probes
+        cid = locate_cell(g, lat, lon)
+        nodes, w = interpolation_weights(g, cid, lat, lon)
+        for f in (flat, flon)
+            vals = [f(ManifoldMeshes._cartesian_to_latlon(node_coordinates(g, n))...)
+                    for n in nodes]
+            @test sum(w .* vals) ≈ f(lat, lon) atol = 1e-9
+        end
     end
 end
 
@@ -190,6 +229,23 @@ end
     @test nodes == cell_nodes(g, cid)
     @test sum(w) ≈ 1.0
     @test all(>(0), w)
+end
+
+@testset "ReducedGaussian _cell_local_coords corner convention" begin
+    # nlat=7 circle counts [1,4,8,12,12,8,4,1]: band 4 is the only equal-count
+    # band (cells 25-36), where the analytic longitude fraction is corner-exact.
+    # In unequal-count bands the top/bottom edges have different node spacings,
+    # so the band-slot fraction is an approximation — not corner-exact.
+    g = ReducedGaussianGrid(nlat = 7)
+    cid = 25   # band 4, k=1: SW/SE lon 0/30°, NW/NE lon 0/30°
+    st_is(a, b) = all(isapprox.(a, b; atol = 1e-9))   # Base lacks Tuple isapprox
+    expected = ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))
+    for (k, nid) in enumerate(cell_nodes(g, cid))
+        lat, lon = ManifoldMeshes._cartesian_to_latlon(node_coordinates(g, nid))
+        @test st_is(ManifoldMeshes._cell_local_coords(g, cid, lat, lon), expected[k])
+    end
+    lat_mid = rad2deg((g.node_lat_points[4] + g.node_lat_points[5]) / 2)
+    @test st_is(ManifoldMeshes._cell_local_coords(g, cid, lat_mid, 15.0), (0.5, 0.5))
 end
 
 @testset "3D Cartesian overload parity" begin

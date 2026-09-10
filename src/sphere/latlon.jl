@@ -502,8 +502,10 @@ end
     ilon = rem(cell_id - 1, g.nlon) + 1
     lat = Float64(lat)
     lon = mod(Float64(lon), 360.0)
-    s = (lat - g.lat_edges[ilat]) / (g.lat_edges[ilat + 1] - g.lat_edges[ilat])
-    t = (lon - g.lon_edges[ilon]) / (g.lon_edges[ilon + 1] - g.lon_edges[ilon])
+    # Convention of _bilinear_weights: s is the SW->SE (longitude) fraction,
+    # t the SW->NW (latitude) fraction.
+    s = (lon - g.lon_edges[ilon]) / (g.lon_edges[ilon + 1] - g.lon_edges[ilon])
+    t = (lat - g.lat_edges[ilat]) / (g.lat_edges[ilat + 1] - g.lat_edges[ilat])
     return (s, t)
 end
 

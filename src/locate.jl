@@ -147,8 +147,11 @@ end
 """
     _cell_local_coords(g, cell_id, lat, lon) -> Tuple{Float64, Float64}
 
-Local coordinates `(s, t) ∈ [0,1]²` of `(lat, lon)` within `cell_id`.
-Assumes the point is inside `cell_id` (no check).
+Local coordinates `(s, t) ∈ [0,1]²` of `(lat, lon)` within `cell_id`:
+`s` is the SW→SE fraction (along `cell_nodes` entries 1→2, the longitude
+direction on the structured sphere grids) and `t` the SW→NW fraction
+(1→4), matching `_bilinear_weights`. Assumes the point is inside `cell_id`
+(no check).
 """
 function _cell_local_coords(g::AbstractManifoldMesh, cell_id::Int, lat::Real, lon::Real)
     error("$(typeof(g)) must implement `_cell_local_coords`")
