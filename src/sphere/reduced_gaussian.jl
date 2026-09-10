@@ -523,8 +523,10 @@ end
     k = cell_id - g.band_cell_offsets[j]
     lat_rad = deg2rad(Float64(lat))
     lon = mod(Float64(lon), 360.0)
-    s = (lat_rad - g.node_lat_points[j]) / (g.node_lat_points[j + 1] - g.node_lat_points[j])
-    t = lon / 360.0 * ncells_j - (k - 1)
+    # Convention of _bilinear_weights: s is the SW->SE (longitude) fraction,
+    # t the SW->NW (latitude) fraction.
+    s = lon / 360.0 * ncells_j - (k - 1)
+    t = (lat_rad - g.node_lat_points[j]) / (g.node_lat_points[j + 1] - g.node_lat_points[j])
     return (s, t)
 end
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-09-10
+
+### Fixed
+
+- **`LatLonGrid` / `ReducedGaussianGrid` bilinear interpolation transposition.** `_cell_local_coords` returned `(latitude fraction, longitude fraction)` while `_bilinear_weights` expects `(s, t) = (SW→SE longitude fraction, SW→NW latitude fraction)` for the `(SW, SE, NE, NW)` node order, so the SE and NW corner weights landed on each other's nodes. Interpolation error was `|latfrac − lonfrac| · |V_SE − V_NW|` — zero at nodes, on cell diagonals and at centroids; up to ~0.1 on a smooth 5° field (measured in the ManifoldFields tutorial, ch. 04). CubedSphere, HEALPix, and UnstructuredMesh quads already followed the correct convention; `locate_cell` was unaffected. The (s, t) convention is now stated in the `_cell_local_coords` docstring.
+
 ## [0.7.0] - 2026-09-08
 
 ### Added
