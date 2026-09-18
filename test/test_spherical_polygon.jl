@@ -102,3 +102,36 @@ end
     # not the ~6e-9 the acos formulation produced
     @test spherical_triangle_area(1.0, A, nextfloat.(A), B) < 1e-15
 end
+
+@testset "spherical_polygon_intersection" begin
+    # Tri-rectangular octant A = {x, y, z ≥ 0}; the lon = 45° meridian plane
+    # bisects it, so B is exactly half of A and A ∩ B is B.
+    A = [SVector(1.0, 0.0, 0.0), SVector(0.0, 1.0, 0.0), SVector(0.0, 0.0, 1.0)]
+    B = [SVector(1.0, 0.0, 0.0), SVector(1.0, 1.0, 0.0) / sqrt(2), SVector(0.0, 0.0, 1.0)]
+
+    @test spherical_polygon_area(B) ≈ π / 4
+    @test spherical_polygon_area(spherical_polygon_intersection(A, B)) ≈ π / 4
+    @test spherical_polygon_area(spherical_polygon_intersection(B, A)) ≈ π / 4
+
+    # clipping a ring by itself returns the ring
+    self = spherical_polygon_intersection(A, A)
+    @test spherical_polygon_area(self) ≈ π / 2
+
+    # antipodal octants meet only at the origin: empty intersection.
+    # Negating the vertices alone would flip the ring clockwise (winding -1),
+    # violating the clipper's counter-clockwise precondition; `reverse` restores
+    # it (`cross(-a, -b) == cross(a, b)`, so a clockwise clip ring describes the
+    # same half-spaces as A and would return A unchanged).
+    anti = reverse([-p for p in A])
+    @test isempty(spherical_polygon_intersection(A, anti))
+    @test spherical_polygon_area(spherical_polygon_intersection(A, anti)) == 0.0
+
+    # neighbouring octant shares only the x = 0 meridian arc: zero area
+    C = [SVector(0.0, 1.0, 0.0), SVector(-1.0, 0.0, 0.0), SVector(0.0, 0.0, 1.0)]
+    @test spherical_polygon_area(spherical_polygon_intersection(A, C)) ≈ 0.0 atol = 1e-15
+
+    # result is a valid counter-clockwise ring of unit vectors
+    ring = spherical_polygon_intersection(A, B)
+    @test all(p -> norm(p) ≈ 1.0, ring)
+    @test length(ring) == 3
+end

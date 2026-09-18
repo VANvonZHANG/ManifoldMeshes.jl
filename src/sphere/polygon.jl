@@ -128,3 +128,50 @@ function spherical_polygon_area(ring::AbstractVector{SVector{3, Float64}},
     end
     return Float64(R)^2 * unit_area
 end
+
+"""
+    spherical_polygon_intersection(subject, clip) -> Vector{SVector{3,Float64}}
+
+Intersection of two convex counter-clockwise geodesic rings, as a ring; empty
+when the rings do not overlap.
+
+Spherical Sutherland–Hodgman: clip `subject` by each edge of `clip` in turn,
+keeping the part of the ring inside the edge's hemisphere
+`{q : (a × b) · q ≥ 0}` and inserting the geodesic-arc crossing point whenever
+a ring edge leaves or enters. A vertex within `_GEODESIC_EPS` of the clip edge
+counts as inside, matching the half-open tie-break of `locate_cell`.
+
+Both rings must be convex and lie within an open hemisphere, which holds for
+every mesh cell in this package.
+"""
+function spherical_polygon_intersection(subject::AbstractVector{SVector{3, Float64}},
+        clip::AbstractVector{SVector{3, Float64}})
+    length(clip) < 3 && return SVector{3, Float64}[]
+    output = collect(subject)
+    for i in eachindex(clip)
+        a = clip[i]
+        b = clip[mod1(i + 1, length(clip))]
+        length(output) < 3 && return SVector{3, Float64}[]
+        input = output
+        output = SVector{3, Float64}[]
+        for j in eachindex(input)
+            p = input[j]
+            q = input[mod1(j + 1, length(input))]
+            sp = side_of_geodesic(p, a, b)
+            sq = side_of_geodesic(q, a, b)
+            if sp >= 0
+                if sq >= 0
+                    push!(output, q)
+                else
+                    x = geodesic_arc_intersection(p, q, a, b)
+                    x === nothing || push!(output, x)
+                end
+            elseif sq >= 0
+                x = geodesic_arc_intersection(p, q, a, b)
+                x === nothing || push!(output, x)
+                push!(output, q)
+            end
+        end
+    end
+    return _dedup_ring(output)
+end

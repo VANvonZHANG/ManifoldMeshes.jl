@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (consecutive duplicate vertices — polar and seam nodes — removed).
 - `spherical_polygon_area` (geodesic fan + l'Huilier = Stokes closed form) and
   the export of `spherical_triangle_area`.
+- `spherical_polygon_intersection`: spherical Sutherland–Hodgman clipping of
+  two convex geodesic rings, evaluated directly on the sphere (great circles
+  in place of lines, arcs in place of segments).
 
 ### Fixed
 
