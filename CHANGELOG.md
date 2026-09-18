@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `spherical_polygon_area` (geodesic fan + l'Huilier = Stokes closed form) and
   the export of `spherical_triangle_area`.
 
+### Fixed
+
+- **`spherical_triangle_area` precision on near-degenerate triangles.**
+  `ReducedGaussianGrid` polar-band `cell_volume` was inflated by ~4e-8 relative
+  (8 of 48 cells at `nlat = 6`, 28 of 1088 at `nlat = 32`). The three side lengths
+  used `acos(dot(y, z) / (R * R))`, which loses half its significant digits near 1
+  (`acos(1 - ε) ≈ √(2ε)`), so a triangle built from a cell whose quad repeats a
+  vertex — such a node is one ulp short of unit length — returned ~6e-9 instead of
+  0. Sides now come from the scale-invariant `atan(norm(y × z), y · z)`. Other
+  grid types' `cell_volume` values are unchanged beyond round-off (≤ 1e-14
+  relative).
+
 ## [0.7.1] - 2026-09-10
 
 ### Fixed

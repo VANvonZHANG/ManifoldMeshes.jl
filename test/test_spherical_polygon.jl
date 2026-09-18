@@ -91,3 +91,14 @@ end
     @test spherical_polygon_area(tri) ≈ π / 2
     @test spherical_polygon_area(tri, 2.0) ≈ 4 * π / 2
 end
+
+@testset "spherical_triangle_area degenerate triangles" begin
+    # nodes 2 and 7 of ReducedGaussianGrid(nlat = 6), the quad of cell 5
+    A = SVector(0.74535599249992979, 0.0, -0.66666666666666674)
+    B = SVector(0.66666666666666674, 0.66666666666666663, -0.33333333333333337)
+    @test norm(A) != 1.0     # one ulp short of the sphere: acos(dot(A, A)) = 1.5e-8
+    @test spherical_triangle_area(1.0, A, A, B) == 0.0
+    # one ulp apart: still degenerate to well below any plausible tolerance,
+    # not the ~6e-9 the acos formulation produced
+    @test spherical_triangle_area(1.0, A, nextfloat.(A), B) < 1e-15
+end
