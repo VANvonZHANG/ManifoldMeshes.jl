@@ -134,4 +134,28 @@ end
     ring = spherical_polygon_intersection(A, B)
     @test all(p -> norm(p) ≈ 1.0, ring)
     @test length(ring) == 3
+    @test dot(ring[1], cross(ring[2], ring[3])) > 0   # CCW, as Task 7 consumes it
+
+    # Gnomonic squares: great circles map to straight lines, so a square whose
+    # corner pokes past a vertex of the other square is represented exactly.
+    gsq(u0, u1, v0, v1) = [normalize(SVector(u, v, 1.0))
+                           for (u, v) in ((u0, v0), (u1, v0), (u1, v1), (u0, v1))]
+    big = gsq(0.0, 1.0, 0.0, 1.0)
+    corner = gsq(0.9, 1.1, -0.1, 0.1)
+
+    # The clipper must be symmetric in its arguments. Clipping only against the
+    # clip *arc* (rather than its full great circle) dropped the crossing that
+    # falls beyond the arc and cut the poked corner off, which made the two
+    # orders disagree by 25.6% (3.6102e-3 vs 2.8747e-3).
+    @test spherical_polygon_area(spherical_polygon_intersection(big, corner)) ≈
+          spherical_polygon_area(spherical_polygon_intersection(corner, big)) rtol = 1e-12
+
+    # Both orders must also reproduce the true overlap area. In the gnomonic
+    # chart the overlap is exactly the rectangle u ∈ [0.9, 1.0], v ∈ [0, 0.1],
+    # so its area is the independent quadrature
+    # ∫∫ du dv / (1 + u² + v²)^(3/2) = 3.804203843254536e-3 (Simpson with the
+    # inner integral in u exact, and a 2D midpoint rule, agree to 12 digits).
+    overlap = spherical_polygon_area(spherical_polygon_intersection(big, corner))
+    @test overlap > 1.7e-3                       # loose sanity bound
+    @test overlap ≈ 3.804203843254536e-3 rtol = 1e-9   # the bound that pins the fix
 end

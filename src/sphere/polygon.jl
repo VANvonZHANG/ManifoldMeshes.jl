@@ -67,6 +67,22 @@ end
     return dot(cross(a, p), n) >= -tol && dot(cross(p, b), n) >= -tol
 end
 
+# Crossing of the geodesic arc p → q with the *full great circle* through a and
+# b. Sutherland–Hodgman clips against the clip edge's line, not the clip arc:
+# when the subject pokes past a clip vertex the crossing lies beyond the arc
+# and must still be inserted, otherwise the ring cuts the corner off and the
+# overlap area is under-counted.
+@inline function _edge_crossing(p::SVector{3, Float64}, q::SVector{3, Float64},
+        a::SVector{3, Float64}, b::SVector{3, Float64})
+    x = cross(cross(p, q), cross(a, b))
+    nx = norm(x)
+    nx < _GEODESIC_EPS && return nothing
+    x = x / nx
+    _on_arc(x, p, q) && return x
+    x = -x
+    return _on_arc(x, p, q) ? x : nothing
+end
+
 """
     _dedup_ring(ring) -> Vector{SVector{3,Float64}}
 
@@ -132,14 +148,21 @@ end
 """
     spherical_polygon_intersection(subject, clip) -> Vector{SVector{3,Float64}}
 
-Intersection of two convex counter-clockwise geodesic rings, as a ring; empty
-when the rings do not overlap.
+Intersection of two convex counter-clockwise geodesic rings, as a ring.
+
+The result is symmetric in its arguments. Zero overlap is reported as an empty
+*or degenerate* ring — one with fewer than three vertices, which
+`spherical_polygon_area` scores as `0.0`; two rings that merely share a boundary
+arc can come back as a two-vertex ring rather than an empty one. Callers must
+therefore test the **area**, not `isempty`, to decide whether two cells overlap.
 
 Spherical Sutherland–Hodgman: clip `subject` by each edge of `clip` in turn,
 keeping the part of the ring inside the edge's hemisphere
-`{q : (a × b) · q ≥ 0}` and inserting the geodesic-arc crossing point whenever
-a ring edge leaves or enters. A vertex within `_GEODESIC_EPS` of the clip edge
-counts as inside, matching the half-open tie-break of `locate_cell`.
+`{q : (a × b) · q ≥ 0}` and inserting the crossing with the edge's great circle
+whenever a ring edge leaves or enters (`_edge_crossing` — the full great circle,
+not just the arc, so that a subject poking past a clip vertex keeps its corner).
+A vertex within `_GEODESIC_EPS` of the clip edge counts as inside, matching the
+half-open tie-break of `locate_cell`.
 
 Both rings must be convex and lie within an open hemisphere, which holds for
 every mesh cell in this package.
@@ -163,11 +186,11 @@ function spherical_polygon_intersection(subject::AbstractVector{SVector{3, Float
                 if sq >= 0
                     push!(output, q)
                 else
-                    x = geodesic_arc_intersection(p, q, a, b)
+                    x = _edge_crossing(p, q, a, b)
                     x === nothing || push!(output, x)
                 end
             elseif sq >= 0
-                x = geodesic_arc_intersection(p, q, a, b)
+                x = _edge_crossing(p, q, a, b)
                 x === nothing || push!(output, x)
                 push!(output, q)
             end
