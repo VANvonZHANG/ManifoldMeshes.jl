@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `side_of_geodesic`, `geodesic_arc_intersection`, and `cell_ring`: geodesic
   orientation/intersection predicates and unit-vector cell boundary rings
   (consecutive duplicate vertices — polar and seam nodes — removed).
+- `spherical_polygon_area` (geodesic fan + l'Huilier = Stokes closed form) and
+  the export of `spherical_triangle_area`.
 
 ## [0.7.1] - 2026-09-10
 

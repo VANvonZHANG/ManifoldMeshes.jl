@@ -100,3 +100,31 @@ function cell_ring(g::AbstractManifoldMesh, cell_id::Int)
     ring = SVector{3, Float64}[SVector{3, Float64}(node_coordinates(g, n)) for n in nodes]
     return _dedup_ring(ring)
 end
+
+"""
+    spherical_polygon_area(ring, R = 1.0) -> Float64
+
+Area of the convex geodesic polygon bounded by `ring` on a sphere of radius
+`R`, as a geodesic triangle fan from `ring[1]` evaluated with l'Huilier's
+formula.
+
+This is the closed-form evaluation of the Stokes boundary integral
+`area(Ω) = ∮_{∂Ω} α` with `dα = ω`: on a constant-curvature surface a geodesic
+polygon's boundary integral collapses onto the spherical excess of its
+constituent triangles (Girard's theorem). Rings are assumed convex and
+counter-clockwise; rings with fewer than three vertices have zero area.
+"""
+function spherical_polygon_area(ring::AbstractVector{SVector{3, Float64}},
+        R::Real = 1.0)
+    n = length(ring)
+    n < 3 && return 0.0
+    a = normalize(ring[1])
+    b = normalize(ring[2])
+    unit_area = 0.0
+    for k in 3:n
+        c = normalize(ring[k])
+        unit_area += spherical_triangle_area(1.0, a, b, c)
+        b = c
+    end
+    return Float64(R)^2 * unit_area
+end

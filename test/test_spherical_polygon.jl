@@ -55,3 +55,39 @@ end
     @test count(r -> length(r) == 4, rings) == 4
     @test count(r -> length(r) == 3, rings) == 8
 end
+
+@testset "spherical_polygon_area matches cell_volume" begin
+    face_nodes = [1 2 5; 2 3 5; 3 4 5; 4 1 5; 2 1 6; 3 2 6; 4 3 6; 1 4 6]
+    grids = [
+        LatLonGrid(
+            lat_edges = collect(-90.0:30.0:90.0),
+            lon_edges = collect(0.0:45.0:360.0)
+        ),
+        CubedSphereGrid(n = 4),
+        ReducedGaussianGrid(nlat = 6),
+        HEALPixGrid(nside = 2),
+        UnstructuredMesh(
+            [0.0, 90.0, 180.0, 270.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 90.0, -90.0],
+            face_nodes;
+            start_index = 1
+        )
+    ]
+
+    for g in grids
+        for c in 1:num_cells(g)
+            area = spherical_polygon_area(cell_ring(g, c), g.R)
+            @test area ≈ cell_volume(g, c) rtol = 1e-10
+        end
+    end
+end
+
+@testset "spherical_polygon_area degenerate rings" begin
+    @test spherical_polygon_area(SVector{3, Float64}[]) == 0.0
+    p = SVector(1.0, 0.0, 0.0)
+    @test spherical_polygon_area([p, p]) == 0.0
+    # a tri-rectangular octant triangle has spherical excess π/2
+    tri = [SVector(1.0, 0.0, 0.0), SVector(0.0, 1.0, 0.0), SVector(0.0, 0.0, 1.0)]
+    @test spherical_polygon_area(tri) ≈ π / 2
+    @test spherical_polygon_area(tri, 2.0) ≈ 4 * π / 2
+end
