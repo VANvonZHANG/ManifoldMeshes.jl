@@ -36,7 +36,8 @@ src/
 ├── interface.jl         # AbstractManifoldMesh + full function interface
 ├── dual.jl              # AbstractDualMesh + lazy dual mesh framework
 ├── sphere/
-│   ├── utils.jl         # Shared: _spherical_triangle_area, _lune_area
+│   ├── utils.jl         # Shared: spherical_triangle_area (l'Huilier), _vector_angle
+│   ├── polygon.jl       # Geodesic predicates, cell rings, polygon area/clipping
 │   ├── latlon.jl        # LatLonGrid (structured lat-lon, IsGrid)
 │   ├── cubed_sphere.jl  # CubedSphereGrid (gnomonic projection, 6-face, IsSemiGrid)
 │   ├── reduced_gaussian.jl  # ReducedGaussianGrid (Gaussian lat bands, IsSemiGrid)

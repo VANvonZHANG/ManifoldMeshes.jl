@@ -4,7 +4,9 @@ Four S² grid types sharing spherical geometry utilities from `utils.jl`.
 
 ## Shared Utilities (`utils.jl`)
 
-- `spherical_triangle_area(R, A, B, C)` — l'Huilier's formula, with `clamp(acos, -1, 1)` and `max(tan_half, 0.0)` guards
+- `spherical_triangle_area(R, A, B, C)` — l'Huilier's formula; the side angles
+  come from the scale-invariant `_vector_angle = atan(‖y × z‖, y · z)`, with a
+  `max(tan_half, 0.0)` guard against tiny negative products
 - All grid types compute `cell_volume` by splitting quadrilaterals into two spherical triangles
 
 ## LatLonGrid

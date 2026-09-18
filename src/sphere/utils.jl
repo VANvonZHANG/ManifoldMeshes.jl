@@ -1,9 +1,9 @@
 # Shared spherical geometry utilities for S² mesh types
 
 # Angle between two vectors via atan2, numerically stable when they are nearly
-# parallel: acos(dot(y, z) / (R * R)) loses half its significant digits there
-# (acos(1 - ε) ≈ √(2ε)), which injected spurious area into near-degenerate
-# triangles.
+# parallel. The previous acos(dot(y, z) / (R * R)) loses half its significant
+# digits there (acos(1 - ε) ≈ √(2ε)), which injected spurious area into
+# near-degenerate triangles.
 @inline _vector_angle(y::SVector{3, Float64}, z::SVector{3, Float64}) = atan(norm(cross(y, z)), dot(y, z))
 
 """
@@ -12,7 +12,10 @@
 Compute the area of a spherical triangle with vertices A, B, C on a sphere
 of radius R using l'Huilier's formula.
 
-All vertices must be 3D vectors of length R (i.e., lie on the sphere surface).
+Only the vertices' directions matter: the area depends on the angles between
+them, and `R` enters solely through the final `R^2` scaling. Vertices of length
+`R` are the common case, but unit vectors give the same count for a sphere of
+radius `R`.
 """
 function spherical_triangle_area(R::Float64, A::SVector{3, Float64},
         B::SVector{3, Float64}, C::SVector{3, Float64})
