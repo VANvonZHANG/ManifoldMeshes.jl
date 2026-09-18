@@ -32,8 +32,10 @@ export all_cell_volumes, all_node_coordinates, all_cell_centroids, all_edge_leng
 export boundary_nodes, boundary_edges
 export dual, has_dual, cell_face, cell_local_2d
 export slerp, node_points, edge_segments, cell_polygons, cell_triangles
+export side_of_geodesic, geodesic_arc_intersection, cell_ring
 
 include("sphere/utils.jl")
+include("sphere/polygon.jl")
 include("sphere/latlon.jl")
 include("sphere/cubed_sphere.jl")
 include("sphere/reduced_gaussian.jl")

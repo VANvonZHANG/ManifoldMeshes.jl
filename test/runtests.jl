@@ -28,4 +28,5 @@ end
     include("test_batch_queries.jl")
     include("test_node_cells.jl")
     include("test_locate.jl")
+    include("test_spherical_polygon.jl")
 end
