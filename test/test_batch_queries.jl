@@ -91,11 +91,15 @@ end
         )
     ]
 
+    # Compare against the id-indexed accessors as whole arrays rather than
+    # `all(i -> ...)`: a failure then prints both vectors (a permuted batch
+    # accessor is immediately visible) instead of a bare `Test Failed`.
     for g in grids
-        @test all(i -> all_cell_volumes(g)[i] == cell_volume(g, i), 1:num_cells(g))
-        @test all(i -> all_node_coordinates(g)[i] == node_coordinates(g, i),
-            1:num_nodes(g))
-        @test all(i -> all_cell_centroids(g)[i] == cell_centroid(g, i),
-            1:num_cells(g))
+        @test all_cell_volumes(g) == [cell_volume(g, i) for i in 1:num_cells(g)]
+        @test all_node_coordinates(g) ==
+              [node_coordinates(g, i) for i in 1:num_nodes(g)]
+        @test all_cell_centroids(g) ==
+              [cell_centroid(g, i) for i in 1:num_cells(g)]
+        @test all_edge_lengths(g) == [edge_length(g, i) for i in 1:num_edges(g)]
     end
 end

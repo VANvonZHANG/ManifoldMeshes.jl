@@ -334,8 +334,9 @@ function cell_volume(g::LatLonGrid, cell_id::Int)
     return g.cell_volumes[ilat, ilon]
 end
 
-# Cell/node ids are ilon-fastest ((ilat - 1) * nlon + ilon) while the cached
-# matrices are column-major, so `vec` alone would return them permuted.
+# Ids are ilon-fastest — cells `(ilat - 1) * nlon + ilon`, nodes
+# `(ilat - 1) * (nlon + 1) + ilon` — while the cached matrices are
+# column-major, so `vec` alone would return them permuted.
 # `PermutedDimsArray` keeps the fix lazy — `vec` of it is a zero-copy reshape.
 all_cell_volumes(g::LatLonGrid) = vec(PermutedDimsArray(g.cell_volumes, (2, 1)))
 all_node_coordinates(g::LatLonGrid) = vec(PermutedDimsArray(g.nodes, (2, 1)))
