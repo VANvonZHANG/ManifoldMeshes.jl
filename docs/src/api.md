@@ -14,7 +14,6 @@ LatLonGrid
 CubedSphereGrid
 ReducedGaussianGrid
 HEALPixGrid
-UnstructuredMesh
 AbstractDualMesh
 ```
 
