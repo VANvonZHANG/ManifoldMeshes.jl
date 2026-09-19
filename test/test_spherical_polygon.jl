@@ -87,7 +87,7 @@ end
     # Exercise it on the rings the library actually produces, where the
     # degeneracies live (polar quads that collapse to triangles, seam nodes that
     # dedup away, and shared edges that must clip to nothing).
-    for g in (
+    grids = (
         LatLonGrid(
             lat_edges = collect(-90.0:30.0:90.0),
             lon_edges = collect(0.0:45.0:360.0)
@@ -95,6 +95,7 @@ end
         CubedSphereGrid(n = 4),
         ReducedGaussianGrid(nlat = 6)
     )
+    for g in grids
         label = string(nameof(typeof(g)))
         @testset "self-clip reproduces cell_volume ($label)" begin
             for c in 1:num_cells(g)
