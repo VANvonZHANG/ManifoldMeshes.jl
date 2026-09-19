@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `side_of_geodesic`, `geodesic_arc_intersection`, and `cell_ring`: geodesic
+  orientation/intersection predicates and unit-vector cell boundary rings
+  (consecutive duplicate vertices — polar and seam nodes — removed).
+- `spherical_polygon_area` (geodesic fan + l'Huilier = Stokes closed form) and
+  the export of `spherical_triangle_area`.
+- `spherical_polygon_intersection`: spherical Sutherland–Hodgman clipping of
+  two convex geodesic rings, evaluated directly on the sphere (great circles
+  in place of lines, arcs in place of segments).
+
+### Fixed
+
+- **Breaking — the `LatLonGrid` batch accessors now return an `AbstractVector`
+  in id order.** `all_cell_volumes` and `all_node_coordinates` returned the
+  cached matrices in column-major (ilat-fastest) order while ids are
+  ilon-fastest, so the arrays were permuted relative to the id-indexed
+  accessors. Both now follow id order, lazily and without copying: the result
+  is an `AbstractVector` — a lazy `vec(PermutedDimsArray(...))`, *not* a
+  `Vector` — so consumer code that annotated the result as `Vector{...}` or
+  mutated it (`push!`, `sort!`, `resize!`) no longer applies. Indexing is now
+  simply `x[i] == cell_volume(g, i)` / `node_coordinates(g, i)`.
+- **`spherical_triangle_area` precision on near-degenerate triangles.**
+  `ReducedGaussianGrid` polar-band `cell_volume` was inflated by ~4e-8 relative
+  (8 of 48 cells at `nlat = 6`, 28 of 1088 at `nlat = 32`). The three side lengths
+  used `acos(dot(y, z) / (R * R))`, which loses half its significant digits near 1
+  (`acos(1 - ε) ≈ √(2ε)`), so a triangle built from a cell whose quad repeats a
+  vertex — such a node is one ulp short of unit length — returned ~6e-9 instead of
+  0. Sides now come from the scale-invariant `atan(norm(y × z), y · z)`. Other
+  grid types' `cell_volume` values are unchanged beyond round-off (≤ 1e-14
+  relative).
+
 ## [0.7.1] - 2026-09-10
 
 ### Fixed

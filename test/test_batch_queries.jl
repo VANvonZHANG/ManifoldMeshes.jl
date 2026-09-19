@@ -73,3 +73,33 @@ using LinearAlgebra
     @test all_cell_centroids(g4)[4] ≈ cell_centroid(g4, 4)
     @test all_edge_lengths(g4)[6] ≈ edge_length(g4, 6)
 end
+
+@testset "batch accessors follow id order" begin
+    grids = [
+        LatLonGrid(
+            lat_edges = collect(-90.0:30.0:90.0),
+            lon_edges = collect(0.0:45.0:360.0)
+        ),
+        CubedSphereGrid(n = 4),
+        ReducedGaussianGrid(nlat = 6),
+        HEALPixGrid(nside = 2),
+        UnstructuredMesh(
+            [0.0, 90.0, 180.0, 270.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 90.0, -90.0],
+            [1 2 5; 2 3 5; 3 4 5; 4 1 5; 2 1 6; 3 2 6; 4 3 6; 1 4 6];
+            start_index = 1
+        )
+    ]
+
+    # Compare against the id-indexed accessors as whole arrays rather than
+    # `all(i -> ...)`: a failure then prints both vectors (a permuted batch
+    # accessor is immediately visible) instead of a bare `Test Failed`.
+    for g in grids
+        @test all_cell_volumes(g) == [cell_volume(g, i) for i in 1:num_cells(g)]
+        @test all_node_coordinates(g) ==
+              [node_coordinates(g, i) for i in 1:num_nodes(g)]
+        @test all_cell_centroids(g) ==
+              [cell_centroid(g, i) for i in 1:num_cells(g)]
+        @test all_edge_lengths(g) == [edge_length(g, i) for i in 1:num_edges(g)]
+    end
+end
