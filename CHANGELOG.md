@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-19
+
 ### Added
 
 - `side_of_geodesic`, `geodesic_arc_intersection`, and `cell_ring`: geodesic
@@ -184,7 +186,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documenter.jl documentation site with API reference
 - GitHub Actions CI, CompatHelper, TagBot, and Dependabot automation
 
-[unreleased]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.5.0...HEAD
+[unreleased]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.7.1...v0.8.0
 [0.5.0]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/VANvonZHANG/ManifoldMeshes.jl/compare/v0.2.0...v0.3.0
