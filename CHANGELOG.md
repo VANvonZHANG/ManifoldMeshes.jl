@@ -20,10 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `all_cell_volumes` and `all_node_coordinates` on `LatLonGrid` returned the
+- **Breaking — the `LatLonGrid` batch accessors now return an `AbstractVector`
+  in id order.** `all_cell_volumes` and `all_node_coordinates` returned the
   cached matrices in column-major (ilat-fastest) order while ids are
   ilon-fastest, so the arrays were permuted relative to the id-indexed
-  accessors. Both now follow id order, lazily and without copying.
+  accessors. Both now follow id order, lazily and without copying: the result
+  is an `AbstractVector` — a lazy `vec(PermutedDimsArray(...))`, *not* a
+  `Vector` — so consumer code that annotated the result as `Vector{...}` or
+  mutated it (`push!`, `sort!`, `resize!`) no longer applies. Indexing is now
+  simply `x[i] == cell_volume(g, i)` / `node_coordinates(g, i)`.
 - **`spherical_triangle_area` precision on near-degenerate triangles.**
   `ReducedGaussianGrid` polar-band `cell_volume` was inflated by ~4e-8 relative
   (8 of 48 cells at `nlat = 6`, 28 of 1088 at `nlat = 32`). The three side lengths

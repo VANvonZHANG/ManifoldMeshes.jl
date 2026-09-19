@@ -40,7 +40,7 @@ The current 15-function interface is minimal. Several common mesh operations are
 
 | Priority | Item | Description |
 |----------|------|-------------|
-| 🔴 High | **Batch query functions** | `all_cell_volumes(g) -> Vector{Float64}`, `all_node_coordinates(g) -> Vector{SVector{3,Float64}}`, etc. Current per-cell allocation pattern is slow in tight loops. |
+| 🔴 High | **Batch query functions** | `all_cell_volumes(g) -> AbstractVector{Float64}`, `all_node_coordinates(g) -> AbstractVector{SVector{3,Float64}}`, `all_cell_centroids(g) -> AbstractVector{SVector{3,Float64}}`, etc., each **in id order** (`element i = f(g, i)`). Current per-cell allocation pattern is slow in tight loops. |
 | 🔴 High | **`edge_cells(g, edge_id)`** | Return the 1 or 2 cells adjacent to an edge. Essential for flux computations in FVM. |
 | 🟡 Medium | **`node_edges(g, node_id)`** | Return all edges incident to a node. |
 | 🟡 Medium | **Diagonal neighbor queries** | `cell_cells` currently only returns face-sharing neighbors. Add option for vertex-sharing (diagonal) neighbors. |

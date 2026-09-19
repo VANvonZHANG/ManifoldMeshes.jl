@@ -110,6 +110,11 @@ pole node and seam cells repeat the `lon = 0°`/`lon = 360°` node, which would
 otherwise enter clipping as zero-length edges.
 
 Cells are convex and counter-clockwise seen from outside the sphere.
+
+The vertices are **unit** vectors even when `g.R != 1`, so this ring alone
+carries no radius: pass the mesh radius explicitly when measuring it —
+`spherical_polygon_area(cell_ring(g, c), g.R)`. Relying on the `R = 1.0`
+default silently mis-scales a non-unit sphere's area by a factor `R²`.
 """
 function cell_ring(g::AbstractManifoldMesh, cell_id::Int)
     nodes = cell_nodes(g, cell_id)
@@ -129,6 +134,10 @@ This is the closed-form evaluation of the Stokes boundary integral
 polygon's boundary integral collapses onto the spherical excess of its
 constituent triangles (Girard's theorem). Rings are assumed convex and
 counter-clockwise; rings with fewer than three vertices have zero area.
+
+`R` defaults to `1.0` — the unit sphere. Since `cell_ring` always returns unit
+vectors, measuring a real mesh cell means passing its radius:
+`spherical_polygon_area(cell_ring(g, c), g.R)`.
 """
 function spherical_polygon_area(ring::AbstractVector{SVector{3, Float64}},
         R::Real = 1.0)

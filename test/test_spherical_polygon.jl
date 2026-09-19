@@ -82,6 +82,49 @@ end
     end
 end
 
+@testset "clipping real cells" begin
+    # The clipper's unit tests work on hand-built octants and gnomonic squares.
+    # Exercise it on the rings the library actually produces, where the
+    # degeneracies live (polar quads that collapse to triangles, seam nodes that
+    # dedup away, and shared edges that must clip to nothing).
+    for g in (
+        LatLonGrid(
+            lat_edges = collect(-90.0:30.0:90.0),
+            lon_edges = collect(0.0:45.0:360.0)
+        ),
+        CubedSphereGrid(n = 4),
+        ReducedGaussianGrid(nlat = 6)
+    )
+        label = string(nameof(typeof(g)))
+        @testset "self-clip reproduces cell_volume ($label)" begin
+            for c in 1:num_cells(g)
+                ring = cell_ring(g, c)
+                area = spherical_polygon_area(
+                    spherical_polygon_intersection(ring, ring), g.R
+                )
+                @test area ≈ cell_volume(g, c) rtol = 1e-12
+            end
+        end
+        @testset "adjacent cells do not overlap ($label)" begin
+            for c in 1:num_cells(g)
+                ring_c = cell_ring(g, c)
+                for n in cell_cells(g, c)
+                    (n > c && n <= num_cells(g)) || continue
+                    ring_n = cell_ring(g, n)
+                    # exactly zero, in both orders: the shared edge clips away
+                    # to a degenerate ring rather than to a sliver of area
+                    @test spherical_polygon_area(
+                        spherical_polygon_intersection(ring_c, ring_n), g.R
+                    ) == 0.0
+                    @test spherical_polygon_area(
+                        spherical_polygon_intersection(ring_n, ring_c), g.R
+                    ) == 0.0
+                end
+            end
+        end
+    end
+end
+
 @testset "spherical_polygon_area degenerate rings" begin
     @test spherical_polygon_area(SVector{3, Float64}[]) == 0.0
     p = SVector(1.0, 0.0, 0.0)
@@ -101,6 +144,24 @@ end
     # one ulp apart: still degenerate to well below any plausible tolerance,
     # not the ~6e-9 the acos formulation produced
     @test spherical_triangle_area(1.0, A, nextfloat.(A), B) < 1e-15
+
+    # The other half of the regression: the degenerate guard must not have been
+    # bought by breaking the ordinary case. Cross-check a non-degenerate
+    # triangle against Girard's theorem — area = angular excess — which is an
+    # independent route to the same number, not a second call to the function.
+    interior_angle(a, b, c) = begin
+        n1 = cross(a, b)
+        n2 = cross(a, c)
+        atan(norm(cross(n1, n2)), dot(n1, n2))
+    end
+    girard(a, b, c) = interior_angle(a, b, c) + interior_angle(b, c, a) +
+                      interior_angle(c, a, b) - π
+
+    P = normalize(SVector(0.3, -0.4, 0.8))
+    Q = normalize(SVector(-0.2, 0.9, 0.1))
+    S = normalize(SVector(0.6, 0.2, -0.5))
+    @test spherical_triangle_area(1.0, P, Q, S) ≈ girard(P, Q, S) rtol = 1e-12
+    @test spherical_triangle_area(3.0, P, Q, S) ≈ 9 * girard(P, Q, S) rtol = 1e-12
 end
 
 @testset "spherical_polygon_intersection" begin
@@ -138,8 +199,11 @@ end
 
     # Gnomonic squares: great circles map to straight lines, so a square whose
     # corner pokes past a vertex of the other square is represented exactly.
-    gsq(u0, u1, v0, v1) = [normalize(SVector(u, v, 1.0))
-                           for (u, v) in ((u0, v0), (u1, v0), (u1, v1), (u0, v1))]
+    gsq(u0,
+        u1,
+        v0,
+        v1) = [normalize(SVector(u, v, 1.0))
+               for (u, v) in ((u0, v0), (u1, v0), (u1, v1), (u0, v1))]
     big = gsq(0.0, 1.0, 0.0, 1.0)
     corner = gsq(0.9, 1.1, -0.1, 0.1)
 

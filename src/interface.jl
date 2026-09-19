@@ -240,10 +240,14 @@ function all_node_coordinates(g::AbstractManifoldMesh)
 end
 
 """
-    all_cell_centroids(g) -> Vector{SVector{3,Float64}}
+    all_cell_centroids(g) -> AbstractVector{SVector{3,Float64}}
 
-Return all cell centroids. Default implementation allocates; grid-specific
-overrides may return underlying storage directly.
+Return all cell centroids **in cell-id order** — element `i` is
+`cell_centroid(g, i)`. Callers may rely on that to translate an index into a
+cell id (e.g. a k-d tree over these centroids returns indices that are cell
+ids). The default implementation allocates; grid-specific overrides may return
+the underlying storage directly or lazily, so only the `AbstractVector`
+interface is guaranteed.
 """
 function all_cell_centroids(g::AbstractManifoldMesh)
     [cell_centroid(g, i) for i in 1:num_cells(g)]
