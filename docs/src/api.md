@@ -14,6 +14,7 @@ LatLonGrid
 CubedSphereGrid
 ReducedGaussianGrid
 HEALPixGrid
+UnstructuredMesh
 AbstractDualMesh
 ```
 
@@ -57,6 +58,21 @@ num_edges
 node_coordinates
 cell_volume
 cell_centroid
+```
+
+## Spherical Polygon Geometry
+
+Predicates, areas, and clipping for the geodesic polygons that bound cells.
+Rings are unit vectors in `cell_nodes` order, counter-clockwise seen from
+outside the sphere; `cell_ring` builds them from a mesh.
+
+```@docs
+side_of_geodesic
+geodesic_arc_intersection
+cell_ring
+spherical_triangle_area
+spherical_polygon_area
+spherical_polygon_intersection
 ```
 
 ## Topology
